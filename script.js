@@ -217,7 +217,11 @@ function hideAllModals() {
 toggleLayersBtn.addEventListener('click', () => { layerPanel.classList.toggle('hidden'); toolPanel.classList.add('hidden'); searchPanel.classList.add('hidden'); });
 toggleToolPanelBtn.addEventListener('click', () => { toolPanel.classList.toggle('hidden'); layerPanel.classList.add('hidden'); searchPanel.classList.add('hidden'); });
 toggleSearchBtn.addEventListener('click', () => { searchPanel.classList.toggle('hidden'); toolPanel.classList.add('hidden'); layerPanel.classList.add('hidden'); });
-addPinBtn.addEventListener('click', showCreateModal);
+
+// *** BUG FIX HERE ***
+// Call showCreateModal without passing the event object
+addPinBtn.addEventListener('click', () => showCreateModal());
+
 cancelPinBtn.addEventListener('click', hideAllModals);
 toggleInfoBtn.addEventListener('click', () => infoModal.classList.remove('hidden'));
 closeInfoBtn.addEventListener('click', () => infoModal.classList.add('hidden'));
@@ -227,15 +231,17 @@ savePinBtn.addEventListener('click', function() {
     if (!labelText) return;
 
     if (markerToEdit) {
+        // Editing an existing marker
         markerToEdit.labelText = labelText;
         markerToEdit.markerColor = selectedColor;
         markerToEdit.setIcon(createMarkerIcon(selectedColor));
         markerToEdit.setPopupContent(createPopupContent(markerToEdit));
     } else {
+        // Creating a new marker
         createMarkerFromData({
             labelText: labelText,
             markerColor: selectedColor,
-            latlng: tempPinLatLng || map.getCenter(),
+            latlng: tempPinLatLng || map.getCenter(), // Fallback to map center if no latlng is provided
             radii: []
         });
     }
