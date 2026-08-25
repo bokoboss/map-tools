@@ -21,7 +21,22 @@ The schema must preserve:
 - text content/rotation;
 - arrow semantics.
 
-## 2. Envelope
+## 2. Coordinate convention
+
+All persisted coordinate arrays use WGS84 longitude/latitude order:
+
+`[longitude, latitude]`
+
+This deliberately follows GeoJSON coordinate order rather than Leaflet's runtime `[lat, lng]` convention.
+
+Requirements:
+
+- the Leaflet adapter is responsible for converting persisted/domain `[lon, lat]` into Leaflet `LatLng` values;
+- GeoJSON import/export must not silently swap coordinate order;
+- validation must enforce longitude in `[-180, 180]` and latitude in `[-90, 90]`;
+- tests must use asymmetric coordinates so an accidental swap is detectable.
+
+## 3. Envelope
 
 Conceptual structure:
 
@@ -39,7 +54,7 @@ Conceptual structure:
     "updatedAt": "2026-08-25T00:00:00.000Z"
   },
   "mapView": {
-    "center": [13.7563, 100.5018],
+    "center": [100.5018, 13.7563],
     "zoom": 13,
     "basemapId": "osm-standard"
   },
@@ -48,9 +63,9 @@ Conceptual structure:
 }
 ```
 
-Timestamps should be ISO-8601 strings. Coordinates use WGS84 latitude/longitude unless an import/export tool explicitly states otherwise.
+Timestamps should be ISO-8601 strings.
 
-## 3. Stable IDs
+## 4. Stable IDs
 
 All projects, groups, features, and independently editable radius rings must use stable generated IDs.
 
@@ -63,7 +78,7 @@ Requirements:
 
 UUIDs are preferred, but any collision-resistant application-generated string format is acceptable if tested.
 
-## 4. Groups
+## 5. Groups
 
 ```json
 {
@@ -85,7 +100,7 @@ Lock rule:
 
 `effectiveLocked = group.locked || feature.locked`
 
-## 5. Common feature fields
+## 6. Common feature fields
 
 Every feature must contain:
 
@@ -115,7 +130,7 @@ Initial supported types:
 - `circle`;
 - `arrow`.
 
-## 6. Marker
+## 7. Marker
 
 ```json
 {
@@ -127,7 +142,7 @@ Initial supported types:
   "locked": false,
   "geometry": {
     "kind": "point",
-    "coordinates": [13.7563, 100.5018]
+    "coordinates": [100.5018, 13.7563]
   },
   "style": {
     "color": "#2563eb",
@@ -146,9 +161,7 @@ Initial supported types:
 }
 ```
 
-Coordinate order inside Map Tools project JSON is `[lat, lon]` for readability and consistency with Leaflet UI APIs. GeoJSON import/export adapters must explicitly convert to/from GeoJSON `[lon, lat]` order.
-
-## 7. Text
+## 8. Text
 
 ```json
 {
@@ -160,7 +173,7 @@ Coordinate order inside Map Tools project JSON is `[lat, lon]` for readability a
   "locked": false,
   "geometry": {
     "kind": "point",
-    "coordinates": [13.7563, 100.5018]
+    "coordinates": [100.5018, 13.7563]
   },
   "style": {
     "color": "#1f2937",
@@ -177,7 +190,7 @@ Coordinate order inside Map Tools project JSON is `[lat, lon]` for readability a
 
 Text is plain text. Project files must not use text values as executable HTML.
 
-## 8. Polyline
+## 9. Polyline
 
 ```json
 {
@@ -190,8 +203,8 @@ Text is plain text. Project files must not use text values as executable HTML.
   "geometry": {
     "kind": "lineString",
     "coordinates": [
-      [13.7500, 100.5000],
-      [13.7510, 100.5020]
+      [100.5000, 13.7500],
+      [100.5020, 13.7510]
     ]
   },
   "style": {
@@ -204,7 +217,7 @@ Text is plain text. Project files must not use text values as executable HTML.
 }
 ```
 
-## 9. Polygon
+## 10. Polygon
 
 ```json
 {
@@ -217,9 +230,9 @@ Text is plain text. Project files must not use text values as executable HTML.
   "geometry": {
     "kind": "polygon",
     "coordinates": [
-      [13.7500, 100.5000],
-      [13.7510, 100.5000],
-      [13.7510, 100.5020]
+      [100.5000, 13.7500],
+      [100.5000, 13.7510],
+      [100.5020, 13.7510]
     ]
   },
   "style": {
@@ -235,7 +248,7 @@ Text is plain text. Project files must not use text values as executable HTML.
 
 The application may normalize polygon closure internally; the persisted rule must be consistent and covered by tests.
 
-## 10. Rectangle
+## 11. Rectangle
 
 Rectangle semantics should be preserved explicitly rather than collapsing permanently into a generic polygon.
 
@@ -245,8 +258,8 @@ Rectangle semantics should be preserved explicitly rather than collapsing perman
   "type": "rectangle",
   "geometry": {
     "kind": "bounds",
-    "southWest": [13.7500, 100.5000],
-    "northEast": [13.7520, 100.5030]
+    "southWest": [100.5000, 13.7500],
+    "northEast": [100.5030, 13.7520]
   },
   "style": {
     "color": "#8b5cf6",
@@ -258,7 +271,7 @@ Rectangle semantics should be preserved explicitly rather than collapsing perman
 }
 ```
 
-## 11. Circle
+## 12. Circle
 
 ```json
 {
@@ -266,7 +279,7 @@ Rectangle semantics should be preserved explicitly rather than collapsing perman
   "type": "circle",
   "geometry": {
     "kind": "circle",
-    "center": [13.7563, 100.5018],
+    "center": [100.5018, 13.7563],
     "radiusM": 250
   },
   "style": {
@@ -279,7 +292,7 @@ Rectangle semantics should be preserved explicitly rather than collapsing perman
 }
 ```
 
-## 12. Arrow
+## 13. Arrow
 
 An arrow is a semantic line with arrow rendering. It is not persisted as a Leaflet feature group or separate arrow-head marker.
 
@@ -291,8 +304,8 @@ An arrow is a semantic line with arrow rendering. It is not persisted as a Leafl
   "geometry": {
     "kind": "lineString",
     "coordinates": [
-      [13.7500, 100.5000],
-      [13.7510, 100.5020]
+      [100.5000, 13.7500],
+      [100.5020, 13.7510]
     ]
   },
   "style": {
@@ -306,7 +319,7 @@ An arrow is a semantic line with arrow rendering. It is not persisted as a Leafl
 
 Renderer code derives arrow-head position and rotation from the final line segment.
 
-## 13. Style validation
+## 14. Style validation
 
 At minimum validate:
 
@@ -318,11 +331,11 @@ At minimum validate:
 
 Do not accept arbitrary CSS strings where a narrower typed field is possible.
 
-## 14. Map view
+## 15. Map view
 
 ```json
 {
-  "center": [13.7563, 100.5018],
+  "center": [100.5018, 13.7563],
   "zoom": 13,
   "basemapId": "osm-standard"
 }
@@ -335,7 +348,7 @@ If a saved basemap ID is unavailable in a future version:
 3. show a non-blocking message;
 4. do not fail the whole project load.
 
-## 15. Migration from current v1 JSON
+## 16. Migration from current v1 JSON
 
 The migration/importer should recognize the existing shape:
 
@@ -350,6 +363,7 @@ Migration goals:
 
 - generate a new project ID;
 - generate stable IDs for all recovered features;
+- convert Leaflet-style marker latitude/longitude objects into schema `[lon, lat]` order;
 - convert markers and radius rings;
 - recover generic GeoJSON shapes and known style/radius data;
 - preserve as much recoverable data as possible;
@@ -357,7 +371,7 @@ Migration goals:
 
 Important: current v1 text/arrow semantics may not be fully recoverable from saved files because they were not represented as a normative persisted type. Migration must never invent semantics silently.
 
-## 16. Validation behavior
+## 17. Validation behavior
 
 Validation must occur before replacing the active project.
 
@@ -366,13 +380,13 @@ Reject files when:
 - JSON syntax is invalid;
 - schema version is unsupported and no migration exists;
 - required IDs/types/geometries are missing;
-- coordinate or numeric values are non-finite;
+- coordinate or numeric values are non-finite or outside documented ranges;
 - array/object structures exceed implementation safety limits;
 - the structure is incompatible with the declared feature type.
 
 Warnings, rather than hard errors, are appropriate for recoverable conditions such as unknown basemap IDs or optional future fields.
 
-## 17. Forward compatibility
+## 18. Forward compatibility
 
 Readers may ignore unknown optional fields only when doing so cannot change feature semantics.
 
@@ -380,7 +394,7 @@ Unknown `type` values must not be converted into a known type automatically.
 
 Future schema changes that alter meaning require a new schema version and migration.
 
-## 18. Round-trip acceptance matrix
+## 19. Round-trip acceptance matrix
 
 For every supported feature type:
 
@@ -393,3 +407,5 @@ For every supported feature type:
 7. save/reopen again.
 
 The normalized first and second project documents must be semantically equal except for intentionally updated timestamps or explicitly documented normalization.
+
+Coordinate round-trip fixtures must use values such as Bangkok `[100.5018, 13.7563]`, where longitude is outside the valid latitude range, so an accidental `[lat, lon]` swap fails validation/tests immediately.
