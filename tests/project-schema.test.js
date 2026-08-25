@@ -22,6 +22,16 @@ test('all semantic feature discriminators survive serialization', () => {
   assert.deepEqual(document.features.map((feature) => feature.type).sort(), ['arrow', 'circle', 'marker', 'polygon', 'polyline', 'rectangle', 'text']);
 });
 
+test('mixed semantic state survives two save/open cycles with an edit between cycles', () => {
+  const first = schema.deserializeProject(mixedFixture).document;
+  const reopened = schema.deserializeProject(schema.serializeProject(first)).document;
+  reopened.features.find((feature) => feature.type === 'text').properties.text = 'แก้ไข Main Access / Edited';
+  const edited = schema.deserializeProject(schema.serializeProject(reopened)).document;
+  assert.equal(edited.features.find((feature) => feature.type === 'text').properties.text, 'แก้ไข Main Access / Edited');
+  assert.deepEqual(edited.features.map((feature) => feature.type).sort(), ['arrow', 'circle', 'marker', 'polygon', 'polyline', 'rectangle', 'text']);
+  assert.deepEqual(edited.features.find((feature) => feature.type === 'marker').properties.radii.map((radius) => radius.id), ['radius-500m', 'radius-1000m']);
+});
+
 test('security fixture remains literal project data', () => {
   const document = schema.deserializeProject(securityFixture).document;
   const text = document.features.find((feature) => feature.type === 'text');

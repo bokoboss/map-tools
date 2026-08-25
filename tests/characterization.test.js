@@ -34,12 +34,12 @@ test('A1 baseline exposes arrow and text annotation paths', () => {
 test('A1 baseline exposes save/open and deterministic fixture entry points', () => {
   assert.match(html, /id="save-btn"/);
   assert.match(html, /id="open-btn"/);
-  assert.match(script, /JSON\.stringify/);
+  assert.match(script, /MapToolsSchema\.serializeProject/);
   assert.match(script, /FileReader/);
 });
 
 test('A1 baseline search currently uses the provider and marker creation path', () => {
   assert.match(script, /nominatim\.openstreetmap\.org\/search/);
   assert.match(script, /searchResultMarker = createMarkerFromData/);
-  assert.match(script, /searchResultMarker/);
+  assert.match(script, /transient: true/);
 });

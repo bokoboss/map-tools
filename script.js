@@ -31,6 +31,10 @@ const baseMaps = {
 };
 let currentLayer = baseMaps["แผนที่ปกติ"];
 currentLayer.addTo(map);
+const basemapIdOrder = ['osm-standard', 'esri-imagery', 'esri-hybrid', 'opentopomap', 'osm-hot', 'carto-light', 'carto-dark'];
+const basemapNames = Object.keys(baseMaps);
+const basemapIdByName = Object.fromEntries(basemapNames.map((name, index) => [name, basemapIdOrder[index] || `basemap-${index + 1}`]));
+const basemapNameById = Object.fromEntries(Object.entries(basemapIdByName).map(([name, id]) => [id, name]));
 
 // --- App State ---
 let markers = [];
@@ -44,6 +48,7 @@ let colorPickerInstance = null;
 let colorPickerTarget = null;
 let searchResultMarker = null;
 let areLabelsVisible = false;
+let activeProject = MapToolsSchema.createEmptyProject({ name: 'Untitled Map' });
 const presetColors = ['#e11d48', '#f97316', '#f59e0b', '#84cc16', '#22c55e', '#10b981', '#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef'];
 let isAddingText = false;
 let textMarkerToEdit = null;
@@ -52,6 +57,7 @@ let tempPinLatLng = null;
 // Layer group to store all drawn items (polygons, polylines)
 const drawnItems = new L.FeatureGroup();
 map.addLayer(drawnItems);
+const transientSearchLayer = L.layerGroup().addTo(map);
 
 // --- Get DOM Elements ---
 const getEl = (id) => document.getElementById(id);
@@ -99,9 +105,32 @@ function createMarkerIcon(color) {
     return L.divIcon({ html: svg, className: '', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -36] });
 }
 
+function escapeHtml(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function createTextIcon(text, rotation) {
+    const safeRotation = Number.isFinite(Number(rotation)) ? Number(rotation) : 0;
+    return L.divIcon({
+        className: 'text-label-icon',
+        html: `<div style="transform: rotate(${safeRotation}deg);">${escapeHtml(text)}</div>`
+    });
+}
+
 function createPopupContent(marker) {
     const markerId = L.Util.stamp(marker);
-    return `<div class="editable-popup-text" ondblclick="startEdit(${markerId})"><b>${marker.labelText}</b></div>`;
+    const container = document.createElement('div');
+    container.className = 'editable-popup-text';
+    const label = document.createElement('b');
+    label.textContent = marker.labelText || '';
+    container.appendChild(label);
+    container.addEventListener('dblclick', () => window.startEdit(markerId));
+    return container;
 }
 
 function formatArea(area) {
@@ -233,6 +262,7 @@ savePinBtn.addEventListener('click', function() {
     if (markerToEdit) {
         // Editing an existing marker
         markerToEdit.labelText = labelText;
+        markerToEdit.projectName = labelText;
         markerToEdit.markerColor = selectedColor;
         markerToEdit.setIcon(createMarkerIcon(selectedColor));
         markerToEdit.setPopupContent(createPopupContent(markerToEdit));
@@ -347,6 +377,8 @@ function clearMap() {
     });
     markers.length = 0;
     drawnItems.clearLayers();
+    transientSearchLayer.clearLayers();
+    searchResultMarker = null;
 }
 confirmDeleteAllBtn.addEventListener('click', () => {
     clearMap();
@@ -654,13 +686,13 @@ map.on('contextmenu', function(e) {
         .then(data => {
             const addressItem = contextMenu.querySelector('.info-item:last-child');
             if (addressItem) {
-                addressItem.innerHTML = data.display_name || 'ไม่พบข้อมูลที่อยู่';
+                addressItem.textContent = data.display_name || 'ไม่พบข้อมูลที่อยู่';
             }
         })
         .catch(error => {
             const addressItem = contextMenu.querySelector('.info-item:last-child');
             if (addressItem) {
-                addressItem.innerHTML = 'เกิดข้อผิดพลาดในการค้นหา';
+                addressItem.textContent = 'เกิดข้อผิดพลาดในการค้นหา';
             }
         });
 });
@@ -722,11 +754,15 @@ function addLayerContextMenu(layer) {
 
 // --- Save/Load/Export Logic ---
 function createMarkerFromData(data) {
-    const newMarker = L.marker(data.latlng, { draggable: true, icon: createMarkerIcon(data.markerColor) }).addTo(map);
-    newMarker.labelText = data.labelText;
-    newMarker.markerColor = data.markerColor;
+    const transient = Boolean(data.transient);
+    const targetGroup = transient ? transientSearchLayer : map;
+    const newMarker = L.marker(data.latlng, { draggable: true, icon: createMarkerIcon(data.markerColor || '#2563eb') }).addTo(targetGroup);
+    newMarker.projectFeatureId = data.id || MapToolsSchema.createId('feature');
+    newMarker.projectName = data.name || data.labelText || 'Marker';
+    newMarker.labelText = data.labelText || data.name || '';
+    newMarker.markerColor = data.markerColor || '#2563eb';
     newMarker.radii = data.radii || [];
-    newMarker.circleLayerGroup = L.layerGroup().addTo(map);
+    newMarker.circleLayerGroup = L.layerGroup().addTo(targetGroup);
     newMarker.bindPopup(createPopupContent(newMarker), { autoClose: false, closeButton: false });
     
     newMarker.on('dragstart', e => e.target.closePopup());
@@ -734,44 +770,176 @@ function createMarkerFromData(data) {
     
     addLayerContextMenu(newMarker);
     drawCirclesForMarker(newMarker);
-    markers.push(newMarker);
+    if (!transient) markers.push(newMarker);
     return newMarker;
 }
 
-saveProjectBtn.addEventListener('click', () => {
-    const geoJsonData = drawnItems.toGeoJSON();
-    drawnItems.eachLayer((layer) => {
-        const geoJsonFeature = layer.toGeoJSON();
-        const correspondingFeature = geoJsonData.features.find(f => 
-            JSON.stringify(f.geometry) === JSON.stringify(geoJsonFeature.geometry)
-        );
-        if (correspondingFeature) {
-            correspondingFeature.properties.style = {
-                color: layer.options.color,
-                fillColor: layer.options.fillColor,
-            };
-            if (layer.getRadius) {
-                 correspondingFeature.properties.radius = layer.getRadius();
-            }
-        }
-    });
+function toCoordinate(latlng) {
+    return [Number(latlng.lng), Number(latlng.lat)];
+}
 
-    const dataToSave = {
-        markers: markers.map(marker => ({
-            labelText: marker.labelText,
-            markerColor: marker.markerColor,
-            latlng: marker.getLatLng(),
-            radii: marker.radii
-        })),
-        drawnShapes: geoJsonData
+function toLatLng(coordinate) {
+    return [coordinate[1], coordinate[0]];
+}
+
+function toLatLngs(coordinates) {
+    return coordinates.map(toLatLng);
+}
+
+function styleFromLayer(layer, defaults) {
+    const options = layer.options || {};
+    return {
+        ...(defaults || {}),
+        color: options.color,
+        fillColor: options.fillColor,
+        weightPx: options.weight,
+        opacity: options.opacity,
+        fillOpacity: options.fillOpacity
     };
+}
 
-    const jsonString = JSON.stringify(dataToSave, null, 2);
+function featureCommon(layer, type, name, style, properties) {
+    return {
+        id: layer.projectFeatureId || MapToolsSchema.createId('feature'),
+        type,
+        name: layer.projectName || name,
+        groupId: null,
+        visible: true,
+        locked: false,
+        geometry: null,
+        style,
+        properties: properties || {}
+    };
+}
+
+function featureFromMarker(marker) {
+    const feature = featureCommon(marker, 'marker', marker.labelText || 'Marker', { color: marker.markerColor, symbolId: 'pin' }, {
+        radii: (marker.radii || []).map(radius => ({
+            id: String(radius.id || MapToolsSchema.createId('radius')),
+            distanceM: Number(radius.distanceM ?? radius.distance),
+            color: radius.color,
+            fillOpacity: radius.fillOpacity === undefined ? 0.2 : Number(radius.fillOpacity)
+        }))
+    });
+    feature.geometry = { kind: 'point', coordinates: toCoordinate(marker.getLatLng()) };
+    return feature;
+}
+
+function featureFromLayer(layer) {
+    if (layer.isTextLabel) {
+        const feature = featureCommon(layer, 'text', layer.labelText || 'Text', { color: '#1f2937', fontSizePx: 14, fontWeight: 600, rotationDeg: Number(layer.rotation || 0), halo: true }, { text: layer.labelText || '' });
+        feature.geometry = { kind: 'point', coordinates: toCoordinate(layer.getLatLng()) };
+        return feature;
+    }
+    if (layer.isArrow) {
+        const line = layer.getLayers().find(item => item instanceof L.Polyline);
+        const feature = featureCommon(layer, 'arrow', 'Arrow', styleFromLayer(line, { arrowHead: 'end' }), {});
+        feature.geometry = { kind: 'lineString', coordinates: line.getLatLngs().map(toCoordinate) };
+        return feature;
+    }
+    if (layer instanceof L.Circle) {
+        const feature = featureCommon(layer, 'circle', 'Circle', styleFromLayer(layer), {});
+        feature.geometry = { kind: 'circle', center: toCoordinate(layer.getLatLng()), radiusM: Number(layer.getRadius()) };
+        return feature;
+    }
+    if (layer instanceof L.Rectangle) {
+        const bounds = layer.getBounds();
+        const feature = featureCommon(layer, 'rectangle', 'Rectangle', styleFromLayer(layer), {});
+        feature.geometry = { kind: 'bounds', southWest: toCoordinate(bounds.getSouthWest()), northEast: toCoordinate(bounds.getNorthEast()) };
+        return feature;
+    }
+    if (layer instanceof L.Polygon) {
+        const feature = featureCommon(layer, 'polygon', 'Polygon', styleFromLayer(layer), {});
+        feature.geometry = { kind: 'polygon', coordinates: layer.getLatLngs()[0].map(toCoordinate) };
+        return feature;
+    }
+    if (layer instanceof L.Polyline) {
+        const feature = featureCommon(layer, 'polyline', 'Polyline', styleFromLayer(layer), {});
+        feature.geometry = { kind: 'lineString', coordinates: layer.getLatLngs().map(toCoordinate) };
+        return feature;
+    }
+    return null;
+}
+
+function createArrowLayer(latlngs, color, weight) {
+    const line = L.polyline(latlngs, { color: color || '#10b981', weight: weight || 3 });
+    const arrowhead = L.divIcon({
+        className: 'arrow-head',
+        html: `<div><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="${color || '#10b981'}" width="24px" height="24px"><path d="M0 0h24v24H0z" fill="none"/><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/></svg></div>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12]
+    });
+    return L.featureGroup([line, L.marker(latlngs[latlngs.length - 1], { icon: arrowhead })]);
+}
+
+function createTextLayerFromFeature(feature) {
+    const layer = L.marker(toLatLng(feature.geometry.coordinates), { icon: createTextIcon(feature.properties.text, feature.style.rotationDeg), draggable: true }).addTo(drawnItems);
+    layer.isTextLabel = true;
+    layer.projectFeatureId = feature.id;
+    layer.projectName = feature.name;
+    layer.labelText = feature.properties.text;
+    layer.rotation = Number(feature.style.rotationDeg || 0);
+    addLayerContextMenu(layer);
+    return layer;
+}
+
+function renderFeature(feature) {
+    if (feature.type === 'marker') {
+        return createMarkerFromData({ id: feature.id, name: feature.name, labelText: feature.name, markerColor: feature.style.color, latlng: toLatLng(feature.geometry.coordinates), radii: feature.properties.radii.map(radius => ({ id: radius.id, distance: radius.distanceM, color: radius.color, fillOpacity: radius.fillOpacity })) });
+    }
+    if (feature.type === 'text') return createTextLayerFromFeature(feature);
+    const style = { color: feature.style.color, weight: feature.style.weightPx, opacity: feature.style.opacity, fillColor: feature.style.fillColor, fillOpacity: feature.style.fillOpacity };
+    let layer;
+    if (feature.type === 'polyline') layer = L.polyline(toLatLngs(feature.geometry.coordinates), style);
+    else if (feature.type === 'polygon') layer = L.polygon(toLatLngs(feature.geometry.coordinates), style);
+    else if (feature.type === 'rectangle') layer = L.rectangle([toLatLng(feature.geometry.southWest), toLatLng(feature.geometry.northEast)], style);
+    else if (feature.type === 'circle') layer = L.circle(toLatLng(feature.geometry.center), { ...style, radius: feature.geometry.radiusM });
+    else if (feature.type === 'arrow') layer = createArrowLayer(toLatLngs(feature.geometry.coordinates), feature.style.color, feature.style.weightPx);
+    if (!layer) return null;
+    layer.projectFeatureId = feature.id;
+    layer.projectName = feature.name;
+    layer.isArrow = feature.type === 'arrow';
+    drawnItems.addLayer(layer);
+    addLayerContextMenu(layer);
+    bindShapePopup(layer);
+    return layer;
+}
+
+function captureProjectDocument() {
+    const currentBasemapName = basemapNames.find(name => baseMaps[name] === currentLayer);
+    const document = MapToolsSchema.createEmptyProject({ projectId: activeProject.project.id, name: activeProject.project.name, center: toCoordinate(map.getCenter()), zoom: map.getZoom(), basemapId: basemapIdByName[currentBasemapName] || 'osm-standard' });
+    document.project.createdAt = activeProject.project.createdAt;
+    document.project.updatedAt = new Date().toISOString();
+    document.features = markers.map(featureFromMarker);
+    drawnItems.eachLayer(layer => {
+        const feature = featureFromLayer(layer);
+        if (feature) document.features.push(feature);
+    });
+    return MapToolsSchema.normalizeProject(document);
+}
+
+function applyProjectDocument(document) {
+    clearMap();
+    document.features.forEach(renderFeature);
+    map.setView(toLatLng(document.mapView.center), document.mapView.zoom);
+    const basemapName = basemapNameById[document.mapView.basemapId];
+    if (basemapName && baseMaps[basemapName] !== currentLayer) {
+        map.removeLayer(currentLayer);
+        currentLayer = baseMaps[basemapName];
+        map.addLayer(currentLayer);
+    } else if (!basemapName) {
+        console.warn(`Unknown basemap "${document.mapView.basemapId}"; using the current basemap.`);
+    }
+    activeProject = document;
+}
+
+saveProjectBtn.addEventListener('click', () => {
+    const jsonString = MapToolsSchema.serializeProject(captureProjectDocument());
     const blob = new Blob([jsonString], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'map-project.json';
+    a.download = 'map-project-v2.json';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -789,33 +957,12 @@ fileInput.addEventListener('change', (event) => {
     const reader = new FileReader();
     reader.onload = (e) => {
         try {
-            const data = JSON.parse(e.target.result);
-            clearMap();
-            if (data.markers) data.markers.forEach(markerData => createMarkerFromData(markerData));
-            if (data.drawnShapes) {
-                L.geoJSON(data.drawnShapes, {
-                    style: function (feature) {
-                        const defaultStyle = {
-                            color: feature.geometry.type === 'Polygon' ? '#f06eaa' : '#3388ff',
-                            weight: 4
-                        };
-                        return { ...defaultStyle, ...feature.properties.style };
-                    },
-                    onEachFeature: function (feature, layer) {
-                        drawnItems.addLayer(layer);
-                        bindShapePopup(layer);
-                    },
-                    pointToLayer: function(feature, latlng) {
-                        if (feature.properties && feature.properties.radius) {
-                            return L.circle(latlng, feature.properties.radius, feature.properties.style);
-                        }
-                        return L.marker(latlng);
-                    }
-                });
-            }
+            const result = MapToolsSchema.deserializeProject(e.target.result);
+            applyProjectDocument(result.document);
+            if (result.warnings.length) console.warn('Project loaded with warnings:', result.warnings);
         } catch (error) {
             console.error("Error loading project:", error);
-            alert('ไฟล์ไม่ถูกต้องหรือไม่สามารถอ่านข้อมูลได้');
+            alert(`Project file is invalid or could not be read.\n${error.message}`);
         }
     };
     reader.readAsText(file);
@@ -856,9 +1003,7 @@ function performSearch() {
     })
     .then(data => {
         if (searchResultMarker) {
-            const index = markers.indexOf(searchResultMarker);
-            if (index > -1) markers.splice(index, 1);
-            map.removeLayer(searchResultMarker);
+            transientSearchLayer.clearLayers();
             searchResultMarker = null;
         }
 
@@ -871,8 +1016,24 @@ function performSearch() {
                 labelText: result.display_name,
                 markerColor: '#475569', // Slate color
                 latlng: latlng,
-                radii: []
+                radii: [],
+                transient: true
             });
+            const searchPopup = document.createElement('div');
+            const searchLabel = document.createElement('div');
+            searchLabel.textContent = result.display_name;
+            const addSearchResultButton = document.createElement('button');
+            addSearchResultButton.type = 'button';
+            addSearchResultButton.textContent = 'Add to project';
+            addSearchResultButton.className = 'mt-2 rounded bg-blue-600 px-2 py-1 text-white';
+            addSearchResultButton.addEventListener('click', () => {
+                const projectMarker = createMarkerFromData({ labelText: result.display_name, markerColor: '#475569', latlng, radii: [] });
+                transientSearchLayer.clearLayers();
+                searchResultMarker = null;
+                projectMarker.openPopup();
+            });
+            searchPopup.append(searchLabel, addSearchResultButton);
+            searchResultMarker.bindPopup(searchPopup, { autoClose: false, closeButton: false });
             searchResultMarker.openPopup();
             
             searchResults.innerHTML = '';
@@ -964,15 +1125,14 @@ const saveTextHandler = function() {
     if (textMarkerToEdit) {
         // Editing existing text marker
         textMarkerToEdit.labelText = text; // Store text for saving
-        textMarkerToEdit.setIcon(L.divIcon({ 
-            className: 'text-label-icon', 
-            html: `<div style="transform: rotate(${textMarkerToEdit.rotation || 0}deg);">${text}</div>` 
-        }));
+        textMarkerToEdit.setIcon(createTextIcon(text, textMarkerToEdit.rotation || 0));
     } else {
         // Creating new text marker
-        const textIcon = L.divIcon({ className: 'text-label-icon', html: `<div>${text}</div>` });
+        const textIcon = createTextIcon(text, 0);
         const textMarker = L.marker(tempPinLatLng, { icon: textIcon, draggable: true }).addTo(drawnItems);
         textMarker.isTextLabel = true;
+        textMarker.projectFeatureId = MapToolsSchema.createId('feature');
+        textMarker.projectName = text;
         textMarker.labelText = text;
         textMarker.rotation = 0;
 
@@ -1009,10 +1169,7 @@ rotationSlider.addEventListener('input', () => {
         const angle = rotationSlider.value;
         rotationValue.innerText = `${angle}°`;
         textMarkerToEdit.rotation = angle;
-        textMarkerToEdit.setIcon(L.divIcon({ 
-            className: 'text-label-icon', 
-            html: `<div style="transform: rotate(${angle}deg);">${textMarkerToEdit.labelText}</div>` 
-        }));
+        textMarkerToEdit.setIcon(createTextIcon(textMarkerToEdit.labelText, angle));
     }
 });
 
@@ -1054,9 +1211,13 @@ map.on('draw:created', function (e) {
         
         const arrowGroup = L.featureGroup([layer, arrowMarker]).addTo(drawnItems);
         arrowGroup.isArrow = true;
+        arrowGroup.projectFeatureId = MapToolsSchema.createId('feature');
+        arrowGroup.projectName = 'Arrow';
         addLayerContextMenu(arrowGroup);
         bindShapePopup(arrowGroup);
     } else {
+        layer.projectFeatureId = MapToolsSchema.createId('feature');
+        layer.projectName = type ? `${type.charAt(0).toUpperCase()}${type.slice(1)}` : 'Shape';
         drawnItems.addLayer(layer);
         addLayerContextMenu(layer);
         bindShapePopup(layer);
