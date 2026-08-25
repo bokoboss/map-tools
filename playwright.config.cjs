@@ -5,14 +5,16 @@ module.exports = defineConfig({
   testMatch: '**/*.spec.js',
   timeout: 30000,
   use: {
-    baseURL: 'http://127.0.0.1:4173',
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:4173',
     headless: true,
     viewport: { width: 1280, height: 800 }
   },
   webServer: {
-    command: 'python -m http.server 4173',
+    command: process.env.PLAYWRIGHT_USE_PREVIEW === '1'
+      ? 'npm run serve:dist'
+      : 'npm run serve',
     url: 'http://127.0.0.1:4173',
-    reuseExistingServer: true,
+    reuseExistingServer: !process.env.CI,
     timeout: 30000
   }
 });

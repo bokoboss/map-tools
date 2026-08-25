@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const schema = require('../src/project-schema.js');
+const schema = require('../src/persistence/projectSchema.ts');
 
 const mixedFixture = fs.readFileSync(path.join(__dirname, '../docs/v2/fixtures/project-v2-mixed.json'), 'utf8');
 const securityFixture = fs.readFileSync(path.join(__dirname, '../docs/v2/fixtures/project-v2-security-text.json'), 'utf8');

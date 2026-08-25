@@ -260,3 +260,14 @@ test('security fixture renders project text literally without executing it', asy
   await expect(textLabel.locator('[onload]')).toHaveCount(0);
   expect(await page.evaluate(() => window.__MAP_TOOLS_XSS__)).toBeUndefined();
 });
+
+test('A3 renderer reinitialization preserves canonical project state', async ({ page }) => {
+  await boot(page);
+  await loadFixture(page, 'project-v2-mixed.json', mixedFixture);
+  const before = await page.evaluate(() => JSON.stringify(window.__mapToolsTest.captureProjectDocument()));
+  await page.evaluate(() => window.__mapToolsTest.reinitializeRenderer());
+  const after = await page.evaluate(() => JSON.stringify(window.__mapToolsTest.captureProjectDocument()));
+  expect(after).toBe(before);
+  await expect.poll(() => page.evaluate(() => window.__mapToolsTest.getMarkers().length)).toBe(1);
+  await expect.poll(() => page.evaluate(() => window.__mapToolsTest.getDrawnLayers().length)).toBe(6);
+});
