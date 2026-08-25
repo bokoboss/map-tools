@@ -1,6 +1,6 @@
 # A3 Qualification — Vite + TypeScript Renderer-Ready Architecture
 
-Status: qualified locally; PR/CI status is recorded in the final handoff.
+Status: qualified; PR #11 is open and its initial full CI run passed.
 
 ## Identity
 
@@ -73,4 +73,7 @@ Evidence for the future-renderer decision is the shared canonical store/schema, 
 
 ## CI
 
-The GitHub Actions workflow now runs `npm ci`, lint, strict typecheck, unit/integration tests, production build, Playwright Chromium installation, and the full browser suite. The PR URL and final CI run link/status are added to the final handoff once GitHub has created and evaluated the PR.
+The GitHub Actions workflow runs `npm ci`, lint, strict typecheck, unit/integration tests, production build, Playwright Chromium installation, and the full browser suite. The PR and completed CI evidence are recorded below.
+
+- PR: [#11 — A3 Vite + TypeScript modular architecture, renderer-ready](https://github.com/bokoboss/map-tools/pull/11)
+- CI run: [32852555470](https://github.com/bokoboss/map-tools/actions/runs/32852555470) — `success` for PR head `01cde061f7934145e1f6dc82101bdb8c1bdc5e63`
