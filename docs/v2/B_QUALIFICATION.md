@@ -11,7 +11,7 @@ Date: 2026-08-25
 - B1 checkpoint SHA: `dd66452fd34a1d2a10a51e29b993cb178cfd7c2a`
 - B2 checkpoint SHA: `553ef3847ac64fb3024a01de59ca54fdb243a973`
 - Final implementation head SHA: `be50228`
-- Final qualified PR head SHA: `b117bdd1215b65fb1ebfaae0f2eda7bf27fdaf77`
+- Final qualified PR head SHA: `05340f318b3229ac31af53fac637677e994dbe3a`
 
 `origin/main` and the requested execution branch both resolved to the base SHA before implementation. B1 and B2 were committed separately with clean-tree checkpoints before the next phase began.
 
@@ -66,7 +66,7 @@ The domain, persistence, store, workspace state, history, and renderer-neutral i
 The workflow is `.github/workflows/ci.yml` and runs `npm ci`, lint, typecheck, unit tests, build, Chromium installation, and the browser suite.
 
 - PR: [#12 — Macro Phase B productive workspace](https://github.com/bokoboss/map-tools/pull/12), open and unmerged; it fixes #5.
-- CI run: [32870743600](https://github.com/bokoboss/map-tools/actions/runs/32870743600) — `success` for PR head `b117bdd1215b65fb1ebfaae0f2eda7bf27fdaf77`.
+- CI run: [32871007365](https://github.com/bokoboss/map-tools/actions/runs/32871007365) — `success` for PR head `05340f318b3229ac31af53fac637677e994dbe3a`.
 
 ## Known limitations
 
