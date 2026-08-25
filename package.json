@@ -1,0 +1,15 @@
+{
+  "name": "map-tools",
+  "private": true,
+  "version": "2.0.0",
+  "description": "Map Tools browser application",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "test:browser": "playwright test",
+    "test:all": "npm test && npm run test:browser",
+    "serve": "python -m http.server 4173"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1"
+  }
+}
