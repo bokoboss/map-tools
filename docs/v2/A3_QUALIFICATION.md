@@ -7,7 +7,7 @@ Status: qualified locally; PR/CI status is recorded in the final handoff.
 - Repository: `bokoboss/map-tools`
 - Execution branch: `codex/a3-vite-typescript-renderer-ready`
 - Base SHA: `39f57eed548ed7fcd4b077659e12eb5ec10c92b4`
-- Implementation head SHA: recorded after the implementation commit; the final PR tip also includes this qualification record.
+- Implementation head SHA: `18af39508ac4d4b38533f817b682d53665f1777b`; the final PR tip also includes this qualification record.
 
 The branch was synchronized from `origin` before implementation. The execution branch, `origin/main`, and the requested starting point all resolved to the base SHA above.
 
