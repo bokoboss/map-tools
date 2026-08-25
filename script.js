@@ -611,7 +611,7 @@ function bindShapePopup(layer) {
                 const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x) * 180 / Math.PI;
                 const newIcon = L.divIcon({
                     className: 'arrow-head',
-                    html: `<div style="transform: rotate(${angle + 90}deg); transform-origin: center center;">${head.getIcon().options.html.match(/<svg.*<\/svg>/)[0]}</div>`,
+                    html: `<div style="transform: rotate(${angle + 90}deg); transform-origin: center center;">${head.getIcon().options.html.match(/<svg[\s\S]*<\/svg>/)[0]}</div>`,
                     iconSize: [24, 24],
                     iconAnchor: [12, 12]
                 });
@@ -788,14 +788,13 @@ function toLatLngs(coordinates) {
 
 function styleFromLayer(layer, defaults) {
     const options = layer.options || {};
-    return {
-        ...(defaults || {}),
-        color: options.color,
-        fillColor: options.fillColor,
-        weightPx: options.weight,
-        opacity: options.opacity,
-        fillOpacity: options.fillOpacity
-    };
+    const style = { ...(defaults || {}) };
+    if (options.color !== undefined) style.color = options.color;
+    if (options.fillColor !== undefined && options.fillColor !== null) style.fillColor = options.fillColor;
+    if (options.weight !== undefined) style.weightPx = options.weight;
+    if (options.opacity !== undefined) style.opacity = options.opacity;
+    if (options.fillOpacity !== undefined) style.fillOpacity = options.fillOpacity;
+    return style;
 }
 
 function featureCommon(layer, type, name, style, properties) {
@@ -1277,3 +1276,70 @@ presetPalette.addEventListener('click', (e) => {
         colorPickerInstance.color.set(e.target.dataset.color);
     }
 });
+
+// Deterministic browser characterization hooks. These are exposed only for the
+// local/CI test URL and do not change the production UI or runtime path.
+if (new URLSearchParams(window.location.search).has('test')) {
+    const latLngSnapshot = (latlng) => [Number(latlng.lat), Number(latlng.lng)];
+    const layerType = (layer) => {
+        if (layer.isTextLabel) return 'text';
+        if (layer.isArrow) return 'arrow';
+        if (layer instanceof L.Rectangle) return 'rectangle';
+        if (layer instanceof L.Circle) return 'circle';
+        if (layer instanceof L.Polygon) return 'polygon';
+        if (layer instanceof L.Polyline) return 'polyline';
+        return 'unknown';
+    };
+
+    window.__mapToolsTest = {
+        captureProjectDocument,
+        getMarkers: () => markers.slice(),
+        getSearchResult: () => searchResultMarker,
+        getDrawnLayers: () => drawnItems.getLayers().slice(),
+        runtimeSnapshot: () => ({
+            markers: markers.map(marker => ({
+                id: marker.projectFeatureId,
+                label: marker.labelText,
+                latlng: latLngSnapshot(marker.getLatLng()),
+                radii: marker.radii.map(radius => ({ id: String(radius.id), distance: Number(radius.distance) })),
+                circles: marker.circleLayerGroup.getLayers().map(circle => ({ center: latLngSnapshot(circle.getLatLng()), radius: circle.getRadius() }))
+            })),
+            drawn: drawnItems.getLayers().map(layer => {
+                if (layer.isArrow) {
+                    const line = layer.getLayers().find(item => item instanceof L.Polyline);
+                    const head = layer.getLayers().find(item => item instanceof L.Marker);
+                    return { type: 'arrow', line: line.getLatLngs().map(latLngSnapshot), head: latLngSnapshot(head.getLatLng()) };
+                }
+                if (layer.isTextLabel) return { type: 'text', text: layer.labelText, latlng: latLngSnapshot(layer.getLatLng()), rotation: Number(layer.rotation || 0) };
+                if (layer instanceof L.Circle) return { type: 'circle', center: latLngSnapshot(layer.getLatLng()), radius: layer.getRadius() };
+                if (layer instanceof L.Rectangle) return { type: 'rectangle', bounds: [latLngSnapshot(layer.getBounds().getSouthWest()), latLngSnapshot(layer.getBounds().getNorthEast())] };
+                if (layer instanceof L.Polygon) return { type: 'polygon', coordinates: layer.getLatLngs()[0].map(latLngSnapshot) };
+                if (layer instanceof L.Polyline) return { type: 'polyline', coordinates: layer.getLatLngs().map(latLngSnapshot) };
+                return { type: layerType(layer) };
+            })
+        }),
+        fireMapClick: (lat, lng) => map.fire('click', { latlng: L.latLng(lat, lng) }),
+        addTestShape: (type) => {
+            const definitions = {
+                polyline: L.polyline([[13.75, 100.5], [13.751, 100.502]], { color: '#3388ff', weight: 4 }),
+                polygon: L.polygon([[13.75, 100.5], [13.751, 100.5], [13.751, 100.502]], { color: '#f06eaa', weight: 4, fillColor: '#f06eaa', fillOpacity: 0.2 }),
+                rectangle: L.rectangle([[13.75, 100.5], [13.752, 100.503]], { color: '#8b5cf6', weight: 4, fillColor: '#8b5cf6', fillOpacity: 0.2 }),
+                circle: L.circle([13.7563, 100.5018], { radius: 250, color: '#f59e0b', weight: 4, fillColor: '#f59e0b', fillOpacity: 0.2 }),
+                arrow: L.polyline([[13.75, 100.5], [13.751, 100.502]], { color: '#10b981', weight: 3 })
+            };
+            const layer = definitions[type];
+            if (!layer) throw new Error(`Unknown test shape: ${type}`);
+            activeDrawHandler = { type: type === 'arrow' ? 'polyline' : type, disable: () => {} };
+            if (type === 'arrow') drawArrowBtn.classList.add('active');
+            map.fire('draw:created', { layerType: type === 'arrow' ? 'polyline' : type, layer });
+        },
+        openTextEditor: (layer) => {
+            textMarkerToEdit = layer;
+            textModalTitle.innerText = 'แก้ไขข้อความ';
+            textLabelInput.value = layer.labelText;
+            textActionsContainer.classList.remove('hidden');
+            newTextActionsContainer.classList.add('hidden');
+            textModal.classList.remove('hidden');
+        }
+    };
+}
