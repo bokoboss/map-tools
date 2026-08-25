@@ -1,6 +1,6 @@
 # Macro Phase B Qualification — Productive Workspace
 
-Status: locally qualified; PR CI pending
+Status: qualified; local and PR CI gates passed
 Date: 2026-08-25
 
 ## Identity
@@ -11,6 +11,7 @@ Date: 2026-08-25
 - B1 checkpoint SHA: `dd66452fd34a1d2a10a51e29b993cb178cfd7c2a`
 - B2 checkpoint SHA: `553ef3847ac64fb3024a01de59ca54fdb243a973`
 - Final implementation head SHA: `be50228`
+- Final qualified PR head SHA: `b117bdd1215b65fb1ebfaae0f2eda7bf27fdaf77`
 
 `origin/main` and the requested execution branch both resolved to the base SHA before implementation. B1 and B2 were committed separately with clean-tree checkpoints before the next phase began.
 
@@ -62,7 +63,10 @@ The domain, persistence, store, workspace state, history, and renderer-neutral i
 
 ## CI
 
-CI status is pending until the single implementation PR is opened. The workflow is `.github/workflows/ci.yml` and runs `npm ci`, lint, typecheck, unit tests, build, Chromium installation, and the browser suite. This record will be updated with the final GitHub Actions run and status after the PR check completes.
+The workflow is `.github/workflows/ci.yml` and runs `npm ci`, lint, typecheck, unit tests, build, Chromium installation, and the browser suite.
+
+- PR: [#12 — Macro Phase B productive workspace](https://github.com/bokoboss/map-tools/pull/12), open and unmerged; it fixes #5.
+- CI run: [32870743600](https://github.com/bokoboss/map-tools/actions/runs/32870743600) — `success` for PR head `b117bdd1215b65fb1ebfaae0f2eda7bf27fdaf77`.
 
 ## Known limitations
 
@@ -74,5 +78,5 @@ CI status is pending until the single implementation PR is opened. The workflow 
 
 ## Readiness decisions
 
-- `MACRO_PHASE_B_QUALIFIED` — all local gates, browser suites, dense UAT, responsive checks, and static artifact smoke pass; final CI status is tracked above.
+- `MACRO_PHASE_B_QUALIFIED` — all local gates, browser suites, dense UAT, responsive checks, static artifact smoke, and PR CI pass.
 - `NOT_READY_FOR_C4_3D_PREVIEW` — C4 visible 3D/2.5D is explicitly out of scope for Macro Phase B and has not been implemented or qualified. The A3 future-renderer architecture remains ready for a later phase.
