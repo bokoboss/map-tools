@@ -5,25 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Web App เครื่องมือบนแผนที่</title>
 
-    <!-- LeafletJS CSS for map rendering -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-     crossorigin=""/>
-
-    <!-- Leaflet.draw Plugin CSS -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
-    
-    <!-- Google Fonts: Sarabun -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
-
-    <!-- Tailwind CSS for styling -->
-    <script src="https://cdn.tailwindcss.com"></script>
-
-    <!-- Link to your custom CSS file -->
-    <link rel="stylesheet" href="style.css">
-
 </head>
 <body class="overflow-hidden">
 
@@ -369,23 +350,8 @@
     </div>
 
 
-    <!-- External JavaScript Libraries -->
-    <!-- iro.js Color Picker Library -->
-    <script src="https://cdn.jsdelivr.net/npm/@jaames/iro@5"></script>
-    <!-- html2canvas for exporting image -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" xintegrity="sha512-BNaRQnYJYiPSqHHDb58B0yaPfCu+Wgds8Gp/gU33kqBtgNS4tSPHuGibyoVBL5gI9kDXrd3NBGxuJEoHiUT4DI=" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <!-- LeafletJS JavaScript library -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-    <!-- Leaflet.draw Plugin JavaScript -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
-    <!-- Leaflet Geometry Util for area calculation -->
-    <script src="https://cdn.jsdelivr.net/npm/leaflet-geometryutil@0.10.1/dist/leaflet.geometryutil.min.js"></script>
-
-    <!-- Pure project schema/persistence boundary; loaded before the Leaflet adapter. -->
-    <script src="src/project-schema.js"></script>
-
-    <!-- Link to your custom JS file. 'defer' makes it run after the HTML is parsed. -->
-    <script src="script.js" defer></script>
+    <!-- Runtime CSS and application dependencies are bundled by Vite. -->
+    <script type="module" src="./src/main.ts"></script>
 
 </body>
 </html>
