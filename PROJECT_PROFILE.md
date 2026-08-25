@@ -5,20 +5,32 @@
 - Repository URL: https://github.com/bokoboss/map-tools
 - Authoritative local path: `C:\MyRD\map-tools`
 - Primary branch: `main`
-- Package/application version: `2.0.0` (current package metadata; v2 product remains under phased development)
+- Package/application version: `2.0.0`
 
 ## Current accepted baseline
 - Accepted branch: `main`
-- Accepted HEAD SHA: `764d0044b999d3857b896e583becbc5218879caf`
+- Accepted runtime baseline SHA: `614bb814ac83891c8150d285efbcdbaece7ecd26`
 - Accepted date: 2026-08-25
-- Current phase/milestone: Macro Phase A — A1+A2 accepted; A3 modular architecture is next
-- Last accepted PR / CI run: PR #9; final reviewed PR-head CI run `32847542043` passed before squash merge
+- Current phase/milestone: Macro Phase A complete; Macro Phase B Productive Workspace is next
+- Last accepted PR: PR #11 — A3 Vite + TypeScript renderer-ready architecture
+- A3 final acceptance CI before squash merge: run `32862133105` passed
+- A1+A2: accepted via PR #9; issues #2/#3 completed
+- A3: accepted via PR #11; issue #4 completed
+
+Planning/specification commits may advance `main` beyond the accepted runtime baseline before the next execution branch is created. Runtime acceptance is established by reviewed PR/CI evidence, not by assuming every later documentation commit is a new runtime release.
 
 ## Technology stack
-- Languages: JavaScript, HTML, CSS, JSON; TypeScript planned for A3
-- Frameworks/libraries: Leaflet 1.9.4, Leaflet.draw 1.0.4, Leaflet GeometryUtil, Tailwind Play CDN, iro.js, html2canvas; Playwright for browser tests
+- Languages: TypeScript, HTML, CSS, JSON; retained legacy JavaScript is outside the production graph
+- Build/runtime: Vite 6, strict TypeScript
+- Current 2D renderer: Leaflet 1.9.4
+- Drawing adapter: Leaflet.draw 1.0.4
+- Styling: Tailwind CSS 3 + PostCSS plus project CSS
+- Export: html2canvas quick PNG capture
+- Browser testing: Playwright / Chromium
+- Unit/integration testing: Node test runner through `tsx`
 - Package manager: npm with committed `package-lock.json`
-- Supported OS/runtime: static browser application; Node.js 20 in CI; authoritative local development environment is Windows
+- CI runtime: Node.js 20
+- Authoritative local development environment: Windows
 
 ## Standard commands
 ### Install/bootstrap
@@ -33,94 +45,132 @@ python C:\MyRD\engineering-development-workflow\scripts\setup_project.py validat
 
 ### Fast validation
 ```text
+npm run lint
+npm run typecheck
 npm test
-node --check script.js
 ```
 
 ### Full validation
 ```text
-npm run test:all
-node --check script.js
+npm run lint
+npm run typecheck
+npm test
+npm run build
+npm run test:browser
+PLAYWRIGHT_USE_PREVIEW=1 npm run test:browser
 git diff --check
 ```
 
 ### Build/package
 ```text
-No production build command in the accepted A1+A2 static application.
-A Vite + TypeScript production build is an A3 requirement.
+npm run build
 ```
+Output: `dist/` with relative Vite asset paths for static/GitHub Pages-style hosting.
 
 ### Local run
 ```text
+npm run dev
+```
+
+Alternative fixed local server used by tests/development:
+```text
 npm run serve
 ```
-Then open `http://127.0.0.1:4173/index.html`.
+
+Production preview:
+```text
+npm run preview
+```
 
 ## Architecture / invariants
-- Project/domain data is the canonical persistence boundary; Leaflet runtime objects are renderer/editor state, not the persisted data model.
-- Project Schema v2 is versioned and validated before an imported candidate can replace the active project.
-- Persisted WGS84 coordinate order is `[longitude, latitude]`; Leaflet adapter/runtime conversion owns `[latitude, longitude]` conversion.
-- Stable project/group/feature/radius IDs must not depend on Leaflet runtime IDs.
-- Supported semantic feature types are marker, marker radius rings, text, polyline, polygon, rectangle, circle, and arrow.
-- Text and user/project labels are plain text; imported strings must not create executable HTML/event handlers.
-- Search results remain transient until the user explicitly adds them to the project.
-- Invalid imports must leave the active project and rendered state unchanged.
-- Drawing-engine replacement and Leaflet major-version migration are deferred decisions, not implicit A3 requirements.
-- A3 must strengthen the renderer boundary so a future second renderer (for example MapLibre-based 3D visualization) can be added without changing Project Schema/domain semantics.
+- `ProjectDocumentV2` is the canonical persisted domain model.
+- `ProjectStore` owns canonical persisted project state; renderers do not act as the project database.
+- Domain/persistence/store interfaces are renderer-neutral and contain no Leaflet, MapLibre, Three.js, DOM, or drawing-runtime objects.
+- `MapRenderer` / `RendererHost` define the renderer-neutral visualization boundary.
+- `LeafletRenderer` is the current concrete 2D renderer; Leaflet-specific coordinates/runtime objects remain inside the Leaflet boundary.
+- `DrawingAdapter` is renderer-neutral at the application boundary; `LeafletDrawAdapter` contains current Leaflet.draw integration.
+- Persisted WGS84 coordinate order is `[longitude, latitude]`; renderer adapters own runtime conversion.
+- Stable project/group/feature/radius IDs must never depend on renderer runtime IDs.
+- Project Schema v2 is validated/migrated completely before a candidate replaces active project state.
+- Search results are transient until explicit Add to project.
+- User/project text is plain/safe text; imported strings must not execute HTML/event handlers.
+- Normal production runtime does not expose test/legacy browser globals; `?test=1` is the explicit browser-test surface.
+- Future MapLibre/3D visualization must consume the same canonical Project Schema/store without duplicating canonical project state.
 
 ## Protected behavior
-Changes must not alter the following unless explicitly approved:
-- A1 C-01..C-07 characterized marker/radius/shape/arrow/text/search/save-open behavior except where an intentional product change is documented and accepted.
+Changes must not alter the following unless explicitly approved and requalified:
+- A1 C-01..C-07 marker/radius/shape/arrow/text/search/save-open behavior except documented intentional product changes.
 - Project Schema v2 round-trip semantics and stable IDs.
+- WGS84 `[longitude, latitude]` persistence order.
 - Marker radius-ring persistence.
 - Text content/rotation persistence and safe literal rendering.
 - Arrow semantic identity and arrow-head behavior.
 - Rectangle bounds semantics and circle center/radius semantics.
-- Validation-before-replace behavior for project import.
-- WGS84 `[longitude, latitude]` persistence order.
-- v1 migration must recover only supportable content and must not invent ambiguous text/arrow semantics.
+- Invalid import leaves active project/rendered state unchanged.
+- v1 migration recovers only supportable content and does not invent ambiguous text/arrow semantics.
+- A3 renderer-neutral architecture: domain/persistence/store contain no renderer-runtime objects.
+- Renderer teardown/reinitialization must not mutate canonical project data.
+- Production build remains reproducible from committed npm dependencies and lockfile.
 
 ## Important paths
-- Source: `index.html`, `script.js`, `style.css`, `src/project-schema.js`
-- Tests: `tests/`, `playwright.config.cjs`, `docs/v2/fixtures/`
-- Documentation: `docs/v2/`, `docs/development/`
-- Generated output: Playwright `test-results/` / `playwright-report/` are ignored; production build output does not yet exist
-- Local-only / sensitive / licensed data: none required by the accepted repository baseline; project-specific client/sensitive data must not be committed unless explicitly approved
+- Production entry: `index.html`, `src/main.ts`
+- App orchestration: `src/app/`
+- Domain: `src/domain/`
+- Canonical store: `src/store/`
+- Persistence/migration: `src/persistence/`
+- Renderer abstraction: `src/map/renderer/`
+- Leaflet renderer/coordinate boundary: `src/map/leaflet/`
+- Drawing abstraction/adapters: `src/drawing/`
+- Geocoding: `src/geocoding/`
+- Measurement: `src/measurement/`
+- Quick export: `src/export/`
+- Tests: `tests/`
+- Canonical fixtures: `docs/v2/fixtures/`
+- Product/architecture docs: `docs/v2/`
+- Engineering workflow docs: `docs/development/`
+- Generated build: `dist/` (not source of truth)
+- Legacy compatibility/characterization sources: `script.js`, `src/project-schema.js` — retained outside production graph until separately retired
+- Local-only / sensitive / licensed data: none required by repository baseline; client/sensitive data must not be committed unless explicitly approved
 
 ## Validation matrix
 | Gate | Command / Method | Required |
 |---|---|---|
-| Unit / targeted | `npm test` | Yes |
-| Integration / regression | Project Schema tests + A1 behavior characterization | Yes |
-| Browser/UI | `npm run test:browser` | Yes for behavior/UI changes |
-| Full local regression | `npm run test:all` | Yes before handoff/merge |
-| Syntax / diff hygiene | `node --check script.js`; `git diff --check` | Yes while static JS remains |
-| Security | unsafe-text fixture + invalid-import tests | Yes for persistence/rendering changes |
-| Real-data/reference | representative v1 fixture + canonical v2 fixtures | Required where relevant |
-| CI | `.github/workflows/ci.yml` `test` job | Yes |
-| Build/package/runtime | no production build yet; becomes mandatory in A3 | A3 onward |
+| Lint | `npm run lint` | Yes |
+| Strict typecheck | `npm run typecheck` | Yes |
+| Unit/integration/architecture | `npm test` | Yes |
+| Production build | `npm run build` | Yes |
+| Browser/UI dev | `npm run test:browser` | Yes for app/UI behavior |
+| Browser/UI production preview | `PLAYWRIGHT_USE_PREVIEW=1 npm run test:browser` | Yes before phase handoff |
+| Static artifact smoke | serve `dist/` with a plain static server | Required for deployment-affecting changes |
+| Security/persistence | unsafe-text + invalid-import + schema/migration tests | Required where relevant |
+| Dense workspace | `docs/v2/fixtures/project-v2-dense-workspace.json` | Required for Macro B |
+| Diff hygiene | `git diff --check` | Yes |
+| CI | `.github/workflows/ci.yml` | Yes |
 
 ## Execution characteristics
-- Typical task ambiguity: medium; product/UX intent should be resolved in ChatGPT before Codex execution
-- High-risk areas: persistence/schema migrations, coordinate conversion, renderer/domain coupling, safe text rendering, import replacement, drawing lifecycle, future renderer migration
-- Modules safe to parallelize: documentation/specification and isolated pure-domain utilities only when ownership is explicit
-- Modules tightly coupled / single-owner: Project Schema/persistence boundary, map renderer/event bridge, application state migration, drawing integration
-- Preferred local execution constraints: use the cheapest model that can reliably finish a bounded packet; local/browser/runtime changes require actual tests and CI evidence before acceptance
+- Typical task ambiguity: medium; ChatGPT/control plane should resolve product/architecture choices before Codex execution.
+- High-risk areas: persistence/schema, coordinate conversion, renderer/domain leakage, undo/redo transaction boundaries, saved-baseline semantics, selection state leakage, drawing/drag coalescing, safe text/import behavior.
+- Modules safe to parallelize: isolated UI components/tests/documentation once ownership contracts are explicit.
+- Modules tightly coupled / single-owner: `ProjectStore` + history/baseline, renderer event contract, AppController/workspace orchestration, project load/save lifecycle.
+- Preferred local execution: cheapest model that can reliably finish a bounded packet; architecture/UI migrations require actual browser/build/CI evidence.
 
 ## Git / release policy
-- Branch naming: bounded task branches such as `codex/a3-vite-typescript` or equivalent issue-oriented names
-- Commit policy: keep auditable checkpoints for material migration stages; avoid unrelated refactors
-- PR policy: one bounded objective per PR where practical; include issue, exact validation evidence, limitations, and readiness recommendation
-- Merge policy: ChatGPT/control-plane review of actual diff + CI/evidence; material architecture/schema/security changes require scrutiny gate; squash merge is preferred for accepted bounded PRs unless history itself is required
-- Release policy: no v2 Core release until the release qualification gates in `docs/v2/TEST_AND_UAT_PLAN.md` are satisfied
+- Branch naming: bounded task branches such as `codex/b-productive-workspace`.
+- Commit policy: material multi-stage tasks should keep auditable internal checkpoint commits where the execution packet requires them.
+- PR policy: one bounded macro objective per PR where practical; include issue closure, exact validation evidence, limitations, and readiness decision.
+- Merge policy: ChatGPT/control-plane review of actual diff + CI + qualification evidence; architecture/security/high-impact changes require scrutiny gate; squash merge preferred for accepted bounded PRs.
+- Release policy: no public/stable v2 Core claim until relevant product/UAT gates are explicitly qualified.
 
 ## Current known limitations / risks
-- Runtime libraries are still CDN-hosted; dependency management/production build is deferred to A3.
-- Application remains a monolithic static JavaScript structure despite the new pure Project Schema module.
-- Legacy v1 text/arrow semantics cannot be recovered reliably from ambiguous saved files.
-- Object manager, groups editing, undo/redo, dense-project workflow, report-quality export, engineering toolkit, interoperability, and 3D visualization are not yet implemented.
-- Current browser tests rely on the existing CDN runtime path; A3 should move production dependencies into the package/build system and make CI less externally fragile.
+- Leaflet remains the only concrete renderer; MapLibre/Three.js/visible 3D are not implemented.
+- Leaflet.draw remains the drawing engine behind its adapter.
+- Object/layer manager, canonical selection workspace, inspector, groups editing, undo/redo, saved-baseline status, and multi-result search are Macro B work.
+- Legacy `script.js` and `src/project-schema.js` remain outside the production graph for retained characterization compatibility.
+- Legacy v1 text/arrow semantics cannot be recovered from ambiguous historical files.
+- Basemap tiles and Nominatim remain external network services subject to provider availability/rate limits.
+- Engineering toolkit, report-quality export, interoperability expansion, and 3D visualization remain later work.
 
 ## Current next objective
-- Execute A3: Vite + TypeScript modular architecture while preserving the accepted A1+A2 behavior/persistence/security suite.
-- A3 must establish a renderer abstraction that keeps the current Leaflet renderer replaceable and prepares for a future MapLibre/3D visualization renderer without implementing the 3D feature itself.
+- Execute issue #5 / Macro Phase B using `docs/v2/CODEX_B_PACKET.md`.
+- Preserve A3 renderer neutrality while adding stable-ID selection, object/layer panel, groups/inspector, domain history, saved-baseline dirty state, keyboard workflow, multi-result transient search, and responsive/accessibility hardening.
+- Final Macro B qualification must explicitly state whether the product is `READY_FOR_C4_3D_PREVIEW`.
