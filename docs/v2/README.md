@@ -1,42 +1,71 @@
 # Map Tools v2 Planning Index
 
-This directory is the authoritative planning baseline for the Map Tools v2 effort.
+This directory is the authoritative planning and execution baseline for Map Tools v2.
 
-## Documents
+## Project management model
 
+Map Tools v2 uses **3 macro phases**:
+
+1. **Macro Phase A — Reliable Core**: characterization/CI, Project Schema v2 + safe persistence, Vite/TypeScript modularization.
+2. **Macro Phase B — Productive Workspace**: object/layer management, inspector, undo/redo, dirty state, search isolation.
+3. **Macro Phase C — Engineering Delivery Toolkit**: traffic/transport tools, report export, interoperability/site-plan overlay.
+
+The older 0–6 sequence is retained only as bounded work packages / PR slices, not as seven independent project phases.
+
+## Core documents
+
+- [`MASTER_EXECUTION_PLAN.md`](./MASTER_EXECUTION_PLAN.md) — authoritative three-phase management model and ChatGPT/Codex division of work.
 - [`BASELINE_AUDIT.md`](./BASELINE_AUDIT.md) — verified source-level findings, risks, and upgrade direction.
 - [`PRODUCT_SPEC.md`](./PRODUCT_SPEC.md) — target users, workflows, product principles, functional/non-functional requirements, and release boundaries.
-- [`ARCHITECTURE.md`](./ARCHITECTURE.md) — recommended technical boundaries, state model, persistence pipeline, Leaflet adapter strategy, and migration sequence.
-- [`PROJECT_SCHEMA_V2.md`](./PROJECT_SCHEMA_V2.md) — normative draft of the versioned project file/domain schema.
-- [`DECISIONS.md`](./DECISIONS.md) — explicit product/architecture decisions that implementation PRs must not change silently.
+- [`ARCHITECTURE.md`](./ARCHITECTURE.md) — technical boundaries, state model, persistence pipeline, Leaflet adapter strategy, and migration sequence.
+- [`DOMAIN_MODEL_CONTRACT.md`](./DOMAIN_MODEL_CONTRACT.md) — implementation-level typed domain contract and invariants.
+- [`PROJECT_SCHEMA_V2.md`](./PROJECT_SCHEMA_V2.md) — normative versioned project file/domain schema.
+- [`DECISIONS.md`](./DECISIONS.md) — product/architecture decisions implementation PRs must not change silently.
 - [`TEST_AND_UAT_PLAN.md`](./TEST_AND_UAT_PLAN.md) — characterization, unit/integration/E2E, security, performance, responsive, and manual UAT acceptance gates.
-- [`ROADMAP.md`](./ROADMAP.md) — phase sequence, PR boundaries, release qualification, and stop conditions.
-- [`CODEX_PHASE_0_PACKET.md`](./CODEX_PHASE_0_PACKET.md) — bounded execution packet for the baseline characterization/test-harness phase.
-- [`CODEX_PHASE_1_PACKET.md`](./CODEX_PHASE_1_PACKET.md) — bounded execution packet for Project Schema v2 and safe persistence.
+- [`WORKSPACE_UX_SPEC.md`](./WORKSPACE_UX_SPEC.md) — interaction contract for selection, object manager, inspector, history, keyboard, dirty state, and search.
+- [`ENGINEERING_TOOLKIT_SPEC.md`](./ENGINEERING_TOOLKIT_SPEC.md) — traffic/transport symbols, measurements, buffers, coordinates, and study-map workflows.
+- [`REPORT_EXPORT_SPEC.md`](./REPORT_EXPORT_SPEC.md) — report composer, page/output rules, legend, scale, north arrow, attribution, and qualification cases.
+- [`ROADMAP.md`](./ROADMAP.md) — three macro phases, PR strategy, release qualification, and stop conditions.
+
+## Codex execution packets
+
+- [`CODEX_PHASE_0_PACKET.md`](./CODEX_PHASE_0_PACKET.md) — A1 characterization/test-harness packet.
+- [`CODEX_PHASE_1_PACKET.md`](./CODEX_PHASE_1_PACKET.md) — A2 Project Schema v2 + safe persistence packet.
+- [`CODEX_A3_PACKET.md`](./CODEX_A3_PACKET.md) — A3 Vite + TypeScript modularization packet.
+- [`CODEX_B_PACKET.md`](./CODEX_B_PACKET.md) — Macro Phase B workspace packet.
+
+## Canonical fixtures
+
+- [`fixtures/project-v2-mixed.json`](./fixtures/project-v2-mixed.json) — mixed semantic feature round-trip fixture.
+- [`fixtures/project-v2-security-text.json`](./fixtures/project-v2-security-text.json) — unsafe-text/XSS regression fixture that must render literally and never execute.
 
 ## Authority order
 
 When documents appear to conflict, use this order:
 
 1. `PROJECT_SCHEMA_V2.md` for persisted data semantics;
-2. `DECISIONS.md` for explicitly adopted architectural/product decisions;
-3. `TEST_AND_UAT_PLAN.md` for acceptance/qualification;
-4. `ARCHITECTURE.md` for technical boundaries;
-5. `PRODUCT_SPEC.md` for product behavior and scope;
-6. `ROADMAP.md` for sequencing.
+2. `DECISIONS.md` for explicitly adopted architecture/product decisions;
+3. `DOMAIN_MODEL_CONTRACT.md` for implementation-level model invariants;
+4. `TEST_AND_UAT_PLAN.md` for acceptance/qualification;
+5. `ARCHITECTURE.md` for technical boundaries;
+6. focused UX/tool/export specifications for their respective surfaces;
+7. `PRODUCT_SPEC.md` for overall product behavior/scope;
+8. `MASTER_EXECUTION_PLAN.md` / `ROADMAP.md` for sequencing and work packaging.
 
 Implementation findings may justify a planning update, but requirements should be changed explicitly rather than silently bypassed.
 
-## Current baseline
+## Baselines
 
 - repository: `bokoboss/map-tools`
-- baseline branch: `main`
-- baseline commit: `5f4823534c80fd7a2b53d4b55ff76d18975521d2`
-- current implementation: static HTML/CSS/JavaScript + Leaflet
+- original v1 source baseline reviewed: `5f4823534c80fd7a2b53d4b55ff76d18975521d2`
+- v2 planning baseline merged to `main`: `83d5ca83a60b25cca10ed6e0fa7e4a7d8f20c903`
+- current implementation at planning start: static HTML/CSS/JavaScript + Leaflet
 - planning date: 2026-08-25
 
 ## Current decision
 
 Do not rewrite from scratch.
 
-Treat the current app as the v1 reference implementation. Establish tests, create a canonical domain/project model, fix persistence/security, then modularize while preserving qualified behavior. New engineering features come after v2 Core reliability is established.
+Treat the original app as the v1 reference implementation. Establish deterministic tests, create a canonical domain/project model, fix persistence/security, modularize while preserving qualified behavior, then improve workspace UX and add engineering delivery features.
+
+Use ChatGPT for architecture, specifications, fixtures, acceptance criteria, GitHub review, and qualification review. Use Codex primarily where runtime/local-browser iteration is required.
