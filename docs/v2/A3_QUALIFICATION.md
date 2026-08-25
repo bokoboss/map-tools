@@ -8,6 +8,7 @@ Status: qualified; PR #11 is open and its initial full CI run passed.
 - Execution branch: `codex/a3-vite-typescript-renderer-ready`
 - Base SHA: `39f57eed548ed7fcd4b077659e12eb5ec10c92b4`
 - Implementation head SHA: `18af39508ac4d4b38533f817b682d53665f1777b`; the final PR tip also includes this qualification record.
+- Qualification head SHA: `3c02227181fedcca8a3e016738dfe902029e8b74`
 
 The branch was synchronized from `origin` before implementation. The execution branch, `origin/main`, and the requested starting point all resolved to the base SHA above.
 
@@ -76,4 +77,5 @@ Evidence for the future-renderer decision is the shared canonical store/schema, 
 The GitHub Actions workflow runs `npm ci`, lint, strict typecheck, unit/integration tests, production build, Playwright Chromium installation, and the full browser suite. The PR and completed CI evidence are recorded below.
 
 - PR: [#11 — A3 Vite + TypeScript modular architecture, renderer-ready](https://github.com/bokoboss/map-tools/pull/11)
-- CI run: [32852555470](https://github.com/bokoboss/map-tools/actions/runs/32852555470) — `success` for PR head `01cde061f7934145e1f6dc82101bdb8c1bdc5e63`
+- CI run: [32852555470](https://github.com/bokoboss/map-tools/actions/runs/32852555470) — `success` for implementation PR head `01cde061f7934145e1f6dc82101bdb8c1bdc5e63`
+- Final qualification-tip CI run: [32852783846](https://github.com/bokoboss/map-tools/actions/runs/32852783846) — `success` for qualification head `3c02227181fedcca8a3e016738dfe902029e8b74`
