@@ -5,93 +5,78 @@ Date: 2026-08-25
 
 ## 1. Delivery strategy
 
-The implementation should be performed as a sequence of bounded phases. Each phase has a narrow purpose and a qualification gate. Avoid combining architecture migration, drawing-engine replacement, major visual redesign, and new engineering features in one branch.
+Map Tools v2 is organized into **three macro phases**. The older Phase 0–6 naming is retained only as bounded work packages / pull-request slices so implementation remains reviewable.
 
 The guiding rule is:
 
-> Preserve behavior first, make state reliable second, modularize third, improve workflow fourth, then add domain features.
+> Reliable core first, productive workspace second, engineering delivery features third.
 
-## 2. Phase 0 — Baseline characterization and safety net
+Do not combine unrelated high-risk changes into a single implementation branch merely to reduce the apparent phase count.
 
-### Goal
+## 2. Macro Phase A — Reliable Core
 
-Make the current behavior observable and protect useful v1 functionality before structural changes.
+This combines former Phase 0, Phase 1, and Phase 2.
 
-### Work
+### A1 — Characterization + CI (`#2`)
 
-- introduce npm/Vite-compatible test infrastructure with minimum disturbance to current runtime;
-- add browser characterization tests for marker, radii, shapes, arrow, text, search, and save/open;
-- add a small representative v1 project fixture;
-- document currently known persistence losses rather than encoding them as expected v2 behavior;
-- add CI for tests/build once package tooling exists.
+Goal: make current useful behavior observable before structural changes.
 
-### Acceptance
+Required outcomes:
 
-- baseline smoke suite passes on `main` behavior;
-- known defects are marked explicitly;
-- test fixtures are deterministic;
-- no user-facing redesign required.
+- deterministic browser characterization for marker, radii, shapes, arrow, text, search, and save/open;
+- representative v1 fixtures;
+- documented known persistence defects;
+- repeatable local qualification;
+- CI/build smoke from a clean checkout.
 
-### Codex effort profile
+### A2 — Project Schema v2 + safe/lossless persistence (`#3`)
 
-Good candidate for a bounded implementation packet using a cost-efficient model once test expectations are explicit.
+Goal: eliminate silent project-data loss and unsafe project loading.
 
-## 3. Phase 1 — Project Schema v2 and persistence hardening
+Required outcomes:
 
-### Goal
+- versioned Project Schema v2;
+- stable IDs independent of Leaflet runtime IDs;
+- explicit semantic persistence for marker, text, polyline, polygon, rectangle, circle, arrow, and marker radii;
+- validate-before-replace project loading;
+- v1 migration for recoverable content;
+- safe plain-text rendering;
+- complete round-trip/security tests.
 
-Eliminate silent project-data loss and unsafe project loading.
+### A3 — Vite + TypeScript modularization (`#4`)
 
-### Work
+Goal: make the qualified core maintainable without materially changing behavior.
 
-- implement Project Schema v2 types;
-- implement validation;
-- implement serializer/deserializer;
-- implement v1 migration/import path;
-- assign stable IDs;
-- preserve marker radius data;
-- persist text and arrow semantics explicitly;
-- validate before replacing active project;
-- add XSS-safe text rendering;
-- add full round-trip unit/integration tests.
+Required outcomes:
 
-### Acceptance
-
-- all feature-type round-trip tests pass;
-- invalid project files leave current work unchanged;
-- malicious labels render as text;
-- unknown basemap falls back without losing project content;
-- project JSON no longer depends on Leaflet runtime IDs or feature groups.
-
-## 4. Phase 2 — Vite + TypeScript modular architecture
-
-### Goal
-
-Convert the implementation into a maintainable structure without materially changing product behavior.
-
-### Work
-
-- Vite app entry;
+- Vite build;
 - TypeScript strict mode;
-- npm-managed Leaflet/dependencies;
-- lockfile;
+- npm-managed dependencies and lockfile;
 - domain/store/map/persistence/geocoding/measurement boundaries;
-- drawing adapter around current drawing library;
-- remove global app state progressively;
-- lint/type-check/build CI.
+- drawing adapter around the current drawing library;
+- no persistence dependence on Leaflet runtime objects;
+- lint/type-check/build CI;
+- static/GitHub Pages-compatible production output.
 
-### Acceptance
+### Macro Phase A completion gate
 
-- existing browser characterization and v2 persistence suites remain green;
-- production static build works on GitHub Pages-compatible hosting;
-- no third-party Play CDN dependency for Tailwind-style production assets;
-- project serialization and measurement tests do not require Leaflet rendering.
+Do not proceed to major UX or engineering feature expansion until all are true:
 
-## 5. Phase 3 — Workspace UX foundation
+- characterization suite is deterministic and green;
+- supported feature types survive two save/open cycles;
+- invalid imports preserve active work;
+- malicious text payloads render literally and do not execute;
+- project/domain state is independent of Leaflet runtime identity;
+- clean-checkout production build succeeds;
+- CI is green.
+
+## 3. Macro Phase B — Productive Workspace
+
+Corresponds to former Phase 3 (`#5`).
 
 ### Goal
 
-Make projects with many objects manageable and recoverable from editing mistakes.
+Make projects with many objects manageable and make editing mistakes recoverable.
 
 ### Work
 
@@ -106,7 +91,7 @@ Make projects with many objects manageable and recoverable from editing mistakes
 - undo/redo command history;
 - keyboard Escape/Delete behavior;
 - dirty/saved indicator;
-- search-result isolation and explicit add-to-project action.
+- search-result isolation and explicit Add to project action.
 
 ### Acceptance
 
@@ -114,55 +99,29 @@ Make projects with many objects manageable and recoverable from editing mistakes
 - map and panel selection stay synchronized;
 - group visibility/lock semantics pass tests;
 - core undo/redo matrix passes;
-- search no longer silently changes project content.
+- search no longer silently changes project content;
+- responsive smoke matrix passes.
 
-## 6. Phase 4 — Engineering toolkit
+## 4. Macro Phase C — Engineering Delivery Toolkit
 
-### Goal
+Combines former Phase 4, Phase 5, and Phase 6.
 
-Differentiate Map Tools from generic map annotation apps by optimizing common traffic/transport/infrastructure workflows.
+The three work packages below can be prioritized by immediate project need after Macro Phase B is qualified; they are not required to run in a fixed sequence.
 
-### Work
+### C1 — Traffic/transport engineering toolkit (`#6`)
 
 - engineering symbol library;
 - semantic style presets;
-- enhanced measurement panel;
+- measurement enhancements;
 - bearing/azimuth;
 - polygon perimeter;
-- buffer tools;
-- coordinate parser/converter;
-- initial Thai engineering defaults.
+- buffers;
+- coordinate utilities;
+- Thai engineering defaults where appropriate.
 
-### Initial symbol set
+### C2 — Report-quality export (`#7`)
 
-- project site;
-- intersection;
-- access/egress;
-- U-turn;
-- traffic signal;
-- TMC survey;
-- mid-block survey;
-- pedestrian survey;
-- parking survey;
-- camera/CCTV;
-- bus stop;
-- taxi/loading;
-- accident/conflict point.
-
-### Acceptance
-
-A typical traffic study map can be prepared without manually approximating generic marker meaning through arbitrary colors/text.
-
-## 7. Phase 5 — Report-quality export
-
-### Goal
-
-Produce report/presentation maps without manual reconstruction in PowerPoint or graphics software.
-
-### Work
-
-- separate quick capture from report export;
-- output composition area;
+- separate quick capture from report composer;
 - A4/A3/16:9/custom;
 - portrait/landscape;
 - title;
@@ -174,27 +133,14 @@ Produce report/presentation maps without manual reconstruction in PowerPoint or 
 - high-resolution PNG;
 - PDF.
 
-### Acceptance
+### C3 — Interoperability + site-plan overlay (`#8`)
 
-- exported output does not contain app controls;
-- map furniture is deterministic;
-- attribution is preserved as required;
-- report output is suitable for insertion into a technical report at normal print resolution.
-
-## 8. Phase 6 — Interoperability and image overlay
-
-### Goal
-
-Connect Map Tools to common engineering/GIS handoffs without becoming a full GIS.
-
-### Work
-
-First:
+First wave:
 
 - GeoJSON import/export;
 - CSV point import/export.
 
-Then:
+Second wave:
 
 - KML/KMZ;
 - GPX where useful;
@@ -202,13 +148,51 @@ Then:
 - opacity/lock/transform;
 - controlled georeferencing workflow.
 
-### Acceptance
+### Macro Phase C completion gate
 
-Common field/survey and GIS point/geometry data can enter/leave the project without losing basic feature meaning.
+A typical engineering study map can be created, managed, exported to a report-ready figure, and exchanged with common GIS/survey data without semantic or coordinate ambiguity.
 
-## 9. Deferred technology decisions
+## 5. Pull-request strategy
 
-Evaluate only after v2 Core qualification:
+The project has three macro phases, but implementation should remain sliced into small verifiable PRs.
+
+Recommended order:
+
+1. `A1-test-harness`
+2. `A2-project-schema-persistence`
+3. `A3-vite-typescript-modularization`
+4. `B1-workspace-selection-object-panel`
+5. `B2-history-search-isolation` if B1 becomes too large
+6. C-series PRs according to priority
+
+Avoid a single `rewrite-v2` PR.
+
+## 6. ChatGPT/Codex operating model
+
+ChatGPT should perform as much non-runtime work as possible:
+
+- product/UX reasoning;
+- architecture;
+- data contracts;
+- test matrices and deterministic fixtures;
+- acceptance criteria;
+- issue/PR decomposition;
+- GitHub diff/CI review;
+- qualification review;
+- execution-packet preparation.
+
+Codex should be used primarily for:
+
+- implementation requiring file-system/runtime iteration;
+- dependency installation;
+- local test/build execution;
+- browser automation/visual validation;
+- debugging concrete failures;
+- producing reproducible qualification evidence.
+
+## 7. Deferred technology decisions
+
+Evaluate only after Macro Phase A qualification unless a concrete blocker requires earlier action:
 
 - Leaflet-Geoman vs Terra Draw vs continuing Leaflet.draw;
 - Leaflet 2 migration;
@@ -218,25 +202,9 @@ Evaluate only after v2 Core qualification:
 
 These are decisions, not current requirements.
 
-## 10. Recommended pull-request boundaries
+## 8. v2 Core release qualification
 
-Prefer one PR per bounded objective, for example:
-
-1. `phase-0-test-harness`
-2. `phase-1-project-schema`
-3. `phase-1-safe-persistence`
-4. `phase-2-vite-typescript`
-5. `phase-2-module-extraction`
-6. `phase-3-selection-object-panel`
-7. `phase-3-history`
-8. `phase-3-search-isolation`
-9. later engineering/export PRs
-
-Avoid a single `rewrite-v2` PR.
-
-## 11. Release qualification checklist
-
-Before calling v2 Core complete:
+Before calling the Reliable Core + Productive Workspace complete:
 
 - [ ] all supported feature types survive two save/open cycles;
 - [ ] invalid import preserves active project;
@@ -244,19 +212,21 @@ Before calling v2 Core complete:
 - [ ] stable IDs verified;
 - [ ] object panel and map selection synchronized;
 - [ ] undo/redo matrix passes;
-- [ ] search result isolation passes;
+- [ ] search-result isolation passes;
 - [ ] responsive smoke matrix passes;
 - [ ] 500-object performance smoke passes;
 - [ ] production build passes;
 - [ ] CI green;
 - [ ] manual UAT scenarios recorded.
 
-## 12. Stop conditions
+## 9. Stop conditions
 
-Do not proceed to engineering feature expansion if any of these remain unresolved:
+Do not proceed to engineering feature expansion if any remain unresolved:
 
 - save/open can silently lose supported feature semantics;
 - unsafe HTML injection remains possible from project text;
-- current project can be destroyed by failed import;
-- architecture still requires Leaflet runtime objects for persistence;
+- failed import can destroy active project;
+- persistence requires Leaflet runtime objects;
 - core test suite is unreliable or non-deterministic.
+
+See `MASTER_EXECUTION_PLAN.md` for the authoritative three-phase management view.
