@@ -8,6 +8,7 @@ This directory is the authoritative planning baseline for the Map Tools v2 effor
 - [`PRODUCT_SPEC.md`](./PRODUCT_SPEC.md) — target users, workflows, product principles, functional/non-functional requirements, and release boundaries.
 - [`ARCHITECTURE.md`](./ARCHITECTURE.md) — recommended technical boundaries, state model, persistence pipeline, Leaflet adapter strategy, and migration sequence.
 - [`PROJECT_SCHEMA_V2.md`](./PROJECT_SCHEMA_V2.md) — normative draft of the versioned project file/domain schema.
+- [`DECISIONS.md`](./DECISIONS.md) — explicit product/architecture decisions that implementation PRs must not change silently.
 - [`TEST_AND_UAT_PLAN.md`](./TEST_AND_UAT_PLAN.md) — characterization, unit/integration/E2E, security, performance, responsive, and manual UAT acceptance gates.
 - [`ROADMAP.md`](./ROADMAP.md) — phase sequence, PR boundaries, release qualification, and stop conditions.
 - [`CODEX_PHASE_0_PACKET.md`](./CODEX_PHASE_0_PACKET.md) — bounded execution packet for the baseline characterization/test-harness phase.
@@ -18,10 +19,11 @@ This directory is the authoritative planning baseline for the Map Tools v2 effor
 When documents appear to conflict, use this order:
 
 1. `PROJECT_SCHEMA_V2.md` for persisted data semantics;
-2. `TEST_AND_UAT_PLAN.md` for acceptance/qualification;
-3. `ARCHITECTURE.md` for technical boundaries;
-4. `PRODUCT_SPEC.md` for product behavior and scope;
-5. `ROADMAP.md` for sequencing.
+2. `DECISIONS.md` for explicitly adopted architectural/product decisions;
+3. `TEST_AND_UAT_PLAN.md` for acceptance/qualification;
+4. `ARCHITECTURE.md` for technical boundaries;
+5. `PRODUCT_SPEC.md` for product behavior and scope;
+6. `ROADMAP.md` for sequencing.
 
 Implementation findings may justify a planning update, but requirements should be changed explicitly rather than silently bypassed.
 
