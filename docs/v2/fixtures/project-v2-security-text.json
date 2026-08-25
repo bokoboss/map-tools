@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 2,
+  "app": {
+    "name": "map-tools",
+    "version": "2.0.0"
+  },
+  "project": {
+    "id": "project-fixture-security-text",
+    "name": "Security Text Fixture",
+    "createdAt": "2026-08-25T00:00:00.000Z",
+    "updatedAt": "2026-08-25T00:00:00.000Z"
+  },
+  "mapView": {
+    "center": [100.5018, 13.7563],
+    "zoom": 14,
+    "basemapId": "osm-standard"
+  },
+  "groups": [],
+  "features": [
+    {
+      "id": "marker-security",
+      "type": "marker",
+      "name": "<img src=x onerror=alert('marker-xss')>",
+      "groupId": null,
+      "visible": true,
+      "locked": false,
+      "geometry": {
+        "kind": "point",
+        "coordinates": [100.5018, 13.7563]
+      },
+      "style": {
+        "color": "#2563eb",
+        "symbolId": "pin"
+      },
+      "properties": {
+        "radii": []
+      }
+    },
+    {
+      "id": "text-security",
+      "type": "text",
+      "name": "Security Text",
+      "groupId": null,
+      "visible": true,
+      "locked": false,
+      "geometry": {
+        "kind": "point",
+        "coordinates": [100.5030, 13.7560]
+      },
+      "style": {
+        "color": "#1f2937",
+        "fontSizePx": 14,
+        "fontWeight": 600,
+        "rotationDeg": 0,
+        "halo": true
+      },
+      "properties": {
+        "text": "<script>window.__MAP_TOOLS_XSS__=true</script><svg onload=alert('text-xss')>X</svg>"
+      }
+    }
+  ]
+}

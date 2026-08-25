@@ -1,0 +1,200 @@
+{
+  "schemaVersion": 2,
+  "app": {
+    "name": "map-tools",
+    "version": "2.0.0"
+  },
+  "project": {
+    "id": "project-fixture-mixed",
+    "name": "Mixed Feature Qualification Fixture",
+    "createdAt": "2026-08-25T00:00:00.000Z",
+    "updatedAt": "2026-08-25T00:00:00.000Z"
+  },
+  "mapView": {
+    "center": [100.5018, 13.7563],
+    "zoom": 14,
+    "basemapId": "osm-standard"
+  },
+  "groups": [
+    {
+      "id": "group-survey",
+      "name": "Survey Points",
+      "visible": true,
+      "locked": false,
+      "order": 10
+    },
+    {
+      "id": "group-annotations",
+      "name": "Annotations",
+      "visible": true,
+      "locked": false,
+      "order": 20
+    }
+  ],
+  "features": [
+    {
+      "id": "marker-tmc-01",
+      "type": "marker",
+      "name": "TMC-01",
+      "groupId": "group-survey",
+      "visible": true,
+      "locked": false,
+      "geometry": {
+        "kind": "point",
+        "coordinates": [100.5018, 13.7563]
+      },
+      "style": {
+        "color": "#2563eb",
+        "symbolId": "tmc-survey"
+      },
+      "properties": {
+        "radii": [
+          {
+            "id": "radius-500m",
+            "distanceM": 500,
+            "color": "#3388ff",
+            "fillOpacity": 0.2
+          },
+          {
+            "id": "radius-1000m",
+            "distanceM": 1000,
+            "color": "#10b981",
+            "fillOpacity": 0.1
+          }
+        ]
+      }
+    },
+    {
+      "id": "text-main-access",
+      "type": "text",
+      "name": "Main Access Label",
+      "groupId": "group-annotations",
+      "visible": true,
+      "locked": false,
+      "geometry": {
+        "kind": "point",
+        "coordinates": [100.5031, 13.7558]
+      },
+      "style": {
+        "color": "#1f2937",
+        "fontSizePx": 14,
+        "fontWeight": 600,
+        "rotationDeg": 25,
+        "halo": true
+      },
+      "properties": {
+        "text": "ทางเข้าโครงการ / Main Access"
+      }
+    },
+    {
+      "id": "line-study-route",
+      "type": "polyline",
+      "name": "Study Route",
+      "groupId": null,
+      "visible": true,
+      "locked": false,
+      "geometry": {
+        "kind": "lineString",
+        "coordinates": [
+          [100.4997, 13.7552],
+          [100.5012, 13.7561],
+          [100.5036, 13.7568]
+        ]
+      },
+      "style": {
+        "color": "#3388ff",
+        "weightPx": 4,
+        "opacity": 1,
+        "dashArray": null
+      },
+      "properties": {}
+    },
+    {
+      "id": "polygon-project-boundary",
+      "type": "polygon",
+      "name": "Project Boundary",
+      "groupId": null,
+      "visible": true,
+      "locked": false,
+      "geometry": {
+        "kind": "polygon",
+        "coordinates": [
+          [100.5001, 13.7549],
+          [100.5033, 13.7551],
+          [100.5030, 13.7573],
+          [100.5000, 13.7571]
+        ]
+      },
+      "style": {
+        "color": "#f06eaa",
+        "weightPx": 4,
+        "opacity": 1,
+        "fillColor": "#f06eaa",
+        "fillOpacity": 0.2
+      },
+      "properties": {}
+    },
+    {
+      "id": "rectangle-parking-zone",
+      "type": "rectangle",
+      "name": "Parking Zone",
+      "groupId": null,
+      "visible": true,
+      "locked": false,
+      "geometry": {
+        "kind": "bounds",
+        "southWest": [100.5040, 13.7545],
+        "northEast": [100.5055, 13.7557]
+      },
+      "style": {
+        "color": "#8b5cf6",
+        "weightPx": 3,
+        "fillColor": "#8b5cf6",
+        "fillOpacity": 0.15
+      },
+      "properties": {}
+    },
+    {
+      "id": "circle-study-area",
+      "type": "circle",
+      "name": "Study Area",
+      "groupId": null,
+      "visible": true,
+      "locked": false,
+      "geometry": {
+        "kind": "circle",
+        "center": [100.4990, 13.7580],
+        "radiusM": 250
+      },
+      "style": {
+        "color": "#f59e0b",
+        "weightPx": 3,
+        "fillColor": "#f59e0b",
+        "fillOpacity": 0.12
+      },
+      "properties": {}
+    },
+    {
+      "id": "arrow-inbound-flow",
+      "type": "arrow",
+      "name": "Inbound Traffic Flow",
+      "groupId": "group-annotations",
+      "visible": true,
+      "locked": false,
+      "geometry": {
+        "kind": "lineString",
+        "coordinates": [
+          [100.4982, 13.7560],
+          [100.4994, 13.7561],
+          [100.5002, 13.7559]
+        ]
+      },
+      "style": {
+        "color": "#10b981",
+        "weightPx": 3,
+        "arrowHead": "end"
+      },
+      "properties": {}
+    }
+  ]
+}

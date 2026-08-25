@@ -1,0 +1,157 @@
+/* Use Sarabun font for the entire page */
+body {
+    font-family: 'Sarabun', sans-serif;
+}
+/* Ensure the map container fills the screen */
+#map {
+    width: 100vw;
+    height: 100vh;
+}
+/* Custom styles for Leaflet popups */
+.leaflet-popup-content-wrapper {
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.leaflet-popup-content {
+    font-size: 14px;
+    font-weight: 500;
+    color: #374151; /* gray-700 */
+    margin: 10px 15px;
+    max-width: 280px;
+    white-space: normal;
+    word-wrap: break-word;
+}
+.editable-popup-text {
+    cursor: pointer;
+}
+.leaflet-popup-close-button {
+    display: none !important;
+}
+.measure-popup .leaflet-popup-close-button {
+    display: block !important;
+}
+
+/* Custom DivIcon for markers */
+.custom-marker-icon svg {
+    filter: drop-shadow(0 1px 3px rgba(0,0,0,0.4));
+}
+
+/* Style for ALL custom control buttons */
+.custom-leaflet-control {
+    background-color: white;
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.4);
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+.custom-leaflet-control:hover {
+    background-color: #f3f4f6; /* gray-100 */
+}
+.custom-leaflet-control.active {
+    background-color: #dbeafe; /* blue-100 */
+}
+
+/* Style for the color picker widget */
+.color-picker-wrapper .iro__slider { border-radius: 8px; }
+.color-picker-wrapper .iro__wheel { border-width: 0; }
+.preset-swatch {
+    width: 24px; height: 24px; border-radius: 50%; cursor: pointer;
+    border: 2px solid #e5e7eb; transition: transform 0.2s;
+}
+.preset-swatch:hover { transform: scale(1.15); }
+
+/* Hide the default Leaflet.draw toolbar completely */
+.leaflet-draw { display: none; }
+
+/* Modal Animation */
+.modal-content {
+    animation: fadeInScale 0.2s ease-out forwards;
+}
+@keyframes fadeInScale {
+    from {
+        opacity: 0;
+        transform: scale(0.95) translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+/* Style for drawing/editing vertices */
+.leaflet-editing-icon, .leaflet-div-icon.leaflet-editing-icon {
+    background-color: #f97316 !important; /* orange-500 */
+    border-radius: 50% !important;
+    border: 2px solid white !important;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.5) !important;
+    margin-left: -6px !important; /* Adjust position to center */
+    margin-top: -6px !important; /* Adjust position to center */
+    width: 12px !important;
+    height: 12px !important;
+}
+
+/* Improved drawing guide styles */
+.leaflet-draw-guide-dash {
+    background-image: none !important;
+    border-top: 2px solid #f97316 !important; /* orange-500 solid line */
+    border-bottom: none !important;
+    height: 0 !important;
+}
+.leaflet-draw-tooltip {
+    background-color: rgba(31, 41, 55, 0.8) !important; /* gray-800 with opacity */
+    border: none !important;
+    border-radius: 6px !important;
+    color: white !important;
+    font-family: 'Sarabun', sans-serif !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
+}
+
+/* Custom cursor for text tool */
+.cursor-text-tool {
+    cursor: text !important;
+}
+
+/* Custom DivIcon for text labels */
+.text-label-icon {
+    background: transparent;
+    border: none;
+    text-align: center;
+    color: #1f2937; /* gray-800 */
+    font-weight: 600;
+    font-size: 14px;
+    text-shadow: 0 0 4px white, 0 0 4px white, 0 0 4px white, 0 0 4px white;
+    white-space: nowrap;
+}
+
+.arrow-head {
+    background: transparent;
+    border: none;
+}
+
+/* Context Menu Styles */
+#context-menu a {
+    display: block;
+    padding: 8px 16px;
+    color: #374151; /* gray-700 */
+    cursor: pointer;
+    font-size: 14px;
+    white-space: nowrap;
+}
+#context-menu a:hover {
+    background-color: #f3f4f6; /* gray-100 */
+}
+#context-menu hr {
+    margin: 4px 0;
+    border-color: #e5e7eb; /* gray-200 */
+}
+#context-menu .info-item {
+    padding: 8px 16px;
+    font-size: 12px;
+    color: #6b7280; /* gray-500 */
+    cursor: default;
+}
