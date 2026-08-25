@@ -11,6 +11,44 @@
     <!-- The main container for the map -->
     <div id="map"></div>
 
+    <!-- Productive workspace: transient UI around the canonical project store. -->
+    <button id="workspace-toggle-btn" class="workspace-toggle" type="button" aria-label="Show objects and inspector" title="Show objects and inspector">Objects</button>
+    <aside id="workspace-panel" class="workspace-panel" aria-label="Objects and inspector">
+        <div class="workspace-panel-header">
+            <div>
+                <p class="workspace-eyebrow">MAP TOOLS</p>
+                <h1>Objects &amp; Inspector</h1>
+            </div>
+            <div class="workspace-header-actions">
+                <span id="workspace-status" class="workspace-status">Saved</span>
+                <button id="workspace-close-btn" class="workspace-icon-button" type="button" aria-label="Collapse objects and inspector" title="Collapse objects and inspector">×</button>
+            </div>
+        </div>
+        <section id="object-manager" class="workspace-section" aria-labelledby="object-manager-heading">
+            <div class="workspace-section-title">
+                <div>
+                    <p class="workspace-eyebrow">WORKSPACE</p>
+                    <h2 id="object-manager-heading">Objects</h2>
+                </div>
+                <button id="add-group-btn" class="workspace-small-button" type="button" aria-label="Create group">+ Group</button>
+            </div>
+            <label class="workspace-filter">
+                <span class="sr-only">Filter objects</span>
+                <input id="object-filter" type="search" placeholder="Filter objects or groups" autocomplete="off">
+            </label>
+            <div id="object-list" class="workspace-object-list" role="listbox" aria-label="Project objects"></div>
+        </section>
+        <section id="inspector-section" class="workspace-section workspace-inspector-section" aria-labelledby="inspector-heading">
+            <div class="workspace-section-title">
+                <div>
+                    <p class="workspace-eyebrow">DETAILS</p>
+                    <h2 id="inspector-heading">Inspector</h2>
+                </div>
+            </div>
+            <div id="inspector" class="workspace-inspector"></div>
+        </section>
+    </aside>
+
     <!-- Container for all top-right controls -->
     <div id="controls-container" class="absolute top-4 right-4 z-[1000] flex flex-col items-end space-y-2">
         <!-- Search Control Wrapper -->

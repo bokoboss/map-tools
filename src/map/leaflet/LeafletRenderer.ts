@@ -1,5 +1,5 @@
 import L from 'leaflet';
-import type { Coordinate, FeatureStyle, MapView, ProjectDocumentV2, ProjectFeature } from '../../domain/model';
+import type { Coordinate, FeatureId, FeatureStyle, MapView, ProjectDocumentV2, ProjectFeature } from '../../domain/model';
 import { clone, effectiveState } from '../../domain/project';
 import { formatArea, formatDistance, polygonAreaSquareMeters, polylineLength } from '../../measurement';
 import type { BasemapOption, FeatureAction, GeocodingPreview, MapRenderer } from '../renderer/MapRenderer';
@@ -29,6 +29,7 @@ type RuntimePath = L.Path & {
 export interface LeafletRendererCallbacks {
   onFeatureChanged(feature: ProjectFeature): void;
   onFeatureAction(action: FeatureAction, featureId: string): void;
+  onFeatureSelected?(featureId: FeatureId | null): void;
   onMapViewChanged?(view: MapView): void;
 }
 
@@ -67,6 +68,7 @@ export class LeafletRenderer implements MapRenderer {
   private readonly markerLayers = new Map<string, RuntimeMarker>();
   private readonly drawnLayers = new Map<string, RuntimeLayer>();
   private readonly mapClickListeners = new Set<(coordinate: Coordinate) => void>();
+  private readonly featureSelectListeners = new Set<(featureId: FeatureId | null) => void>();
   private readonly callbacks: LeafletRendererCallbacks;
   private currentBasemapId = 'osm-standard';
   private currentBaseLayer: L.Layer;
@@ -134,6 +136,8 @@ export class LeafletRenderer implements MapRenderer {
     this.clearProjectLayers();
     const groups = new Map(project.groups.map((group) => [group.id, group]));
     project.features.forEach((feature) => this.renderFeature(feature, groups.get(feature.groupId ?? '')));
+    if (this.selectedFeatureId && !project.features.some((feature) => feature.id === this.selectedFeatureId)) this.selectedFeatureId = null;
+    this.applySelectionHighlight();
   }
 
   upsertFeature(feature: ProjectFeature): void {
@@ -186,7 +190,8 @@ export class LeafletRenderer implements MapRenderer {
   }
 
   selectFeature(featureId: string | null): void {
-    this.selectedFeatureId = featureId;
+    this.selectedFeatureId = featureId && this.currentProject?.features.some((feature) => feature.id === featureId) ? featureId : null;
+    this.applySelectionHighlight();
   }
 
   fitFeature(featureId: string): void {
@@ -215,6 +220,11 @@ export class LeafletRenderer implements MapRenderer {
   onMapClick(listener: (coordinate: Coordinate) => void): () => void {
     this.mapClickListeners.add(listener);
     return () => this.mapClickListeners.delete(listener);
+  }
+
+  onFeatureSelect(listener: (featureId: FeatureId | null) => void): () => void {
+    this.featureSelectListeners.add(listener);
+    return () => this.featureSelectListeners.delete(listener);
   }
 
   showSearchResult(preview: GeocodingPreview, onAdd: () => void): void {
@@ -328,6 +338,29 @@ export class LeafletRenderer implements MapRenderer {
     if (state.visible) layer.addTo(this.map);
   }
 
+  private publishSelection(featureId: FeatureId | null): void {
+    this.selectFeature(featureId);
+    this.callbacks.onFeatureSelected?.(featureId);
+    this.featureSelectListeners.forEach((listener) => listener(featureId));
+  }
+
+  private applySelectionHighlight(): void {
+    const selectedId = this.selectedFeatureId;
+    for (const [featureId, layer] of this.featureLayers) {
+      const selected = featureId === selectedId;
+      if (layer instanceof L.Marker) {
+        layer.getElement()?.classList.toggle('workspace-selected-feature', selected);
+        continue;
+      }
+      const feature = this.currentProject?.features.find((candidate) => candidate.id === featureId);
+      if (!feature) continue;
+      const target = this.editTarget(layer);
+      if (!target || !(target instanceof L.Path)) continue;
+      const base = styleForLeaflet(feature.style, feature.type === 'arrow' ? { color: '#10b981', weightPx: 3 } : {});
+      target.setStyle(selected ? { ...base, color: '#f97316', weight: (base.weight ?? 4) + 2 } : base);
+    }
+  }
+
   private createMarkerLayer(feature: Extract<ProjectFeature, { type: 'marker' }>, locked: boolean): RuntimeMarker {
     const marker = L.marker(toLeafletLatLng(feature.geometry.coordinates), { draggable: !locked, icon: this.createMarkerIcon(feature.style.color ?? '#2563eb') }) as RuntimeMarker;
     marker.projectFeatureId = feature.id;
@@ -337,6 +370,7 @@ export class LeafletRenderer implements MapRenderer {
     marker.radii = feature.properties.radii.map((radius) => ({ id: radius.id, distance: radius.distanceM, color: radius.color, fillOpacity: radius.fillOpacity }));
     marker.circleLayerGroup = L.layerGroup();
     marker.bindPopup(this.createMarkerPopupContent(feature), { autoClose: false, closeButton: false });
+    marker.on('click', () => this.publishSelection(feature.id));
     marker.on('dragstart', () => marker.closePopup());
     marker.on('drag', () => {
       this.drawCirclesForMarker(marker);
@@ -355,6 +389,7 @@ export class LeafletRenderer implements MapRenderer {
     marker.rotation = feature.style.rotationDeg ?? 0;
     marker.isTextLabel = true;
     marker.bindPopup(this.createMarkerPopupContent(feature), { autoClose: false, closeButton: false });
+    marker.on('click', () => this.publishSelection(feature.id));
     marker.on('drag', () => this.publishFeature(feature.id, marker));
     marker.on('dragend', () => this.publishFeature(feature.id, marker));
     return marker;
@@ -382,6 +417,7 @@ export class LeafletRenderer implements MapRenderer {
       (target as L.Path).bindPopup(() => this.createShapePopupContent(featureId), { autoClose: true, closeOnClick: true });
       target.on('click', (event: L.LeafletMouseEvent) => {
         L.DomEvent.stop(event);
+        this.publishSelection(featureId);
         if (target.isPopupOpen()) target.closePopup();
         else target.openPopup(event.latlng);
       });

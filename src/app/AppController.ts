@@ -6,6 +6,7 @@ import type { DrawTool, DrawnFeatureDraft, DrawingAdapter } from '../drawing/Dra
 import type { GeocodingService } from '../geocoding/GeocodingService';
 import { exportMapToPng } from '../export/QuickPngExporter';
 import type { FeatureAction, GeocodingPreview, MapRenderer } from '../map/renderer/MapRenderer';
+import { WorkspaceController } from '../workspace/WorkspaceController';
 
 type ColorPickerTarget =
   | { type: 'marker' }
@@ -38,6 +39,7 @@ export class AppController {
   private readonly renderer: MapRenderer;
   private drawing: DrawingAdapter;
   private readonly geocoder: GeocodingService;
+  private readonly workspace: WorkspaceController;
   private readonly unsubscribeStore: () => void;
   private readonly unsubscribeMapClick: () => void;
 
@@ -144,6 +146,7 @@ export class AppController {
     this.geocoder = geocoder;
     this.unsubscribeStore = this.store.subscribe((snapshot) => this.renderer.renderProject(snapshot));
     this.unsubscribeMapClick = this.renderer.onMapClick((coordinate) => this.handleMapClick(coordinate));
+    this.workspace = new WorkspaceController(this.store, this.renderer);
     this.drawing.onCreated((draft) => this.handleDrawnFeature(draft));
     this.bindEvents();
     this.populateBasemaps();
@@ -160,12 +163,29 @@ export class AppController {
   destroy(): void {
     this.unsubscribeStore();
     this.unsubscribeMapClick();
+    this.workspace.destroy();
     this.drawing.destroy();
   }
 
   captureProjectDocument() {
     const snapshot = this.store.getSnapshot();
     return normalizeProject(snapshot);
+  }
+
+  getWorkspaceState() {
+    return this.workspace.getState();
+  }
+
+  selectFeature(featureId: string | null): void {
+    this.workspace.selectFeature(featureId);
+  }
+
+  duplicateFeature(featureId: string): string | null {
+    return this.workspace.duplicateFeature(featureId);
+  }
+
+  deleteFeature(featureId: string): void {
+    this.workspace.deleteFeature(featureId);
   }
 
   openMarkerEditor(featureId: string): void {

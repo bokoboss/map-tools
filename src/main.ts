@@ -74,6 +74,10 @@ if (new URLSearchParams(window.location.search).has('test')) {
     getSearchResult: () => renderer.getSearchResult(),
     getDrawnLayers: () => renderer.getDrawnLayers(),
     runtimeSnapshot: () => renderer.runtimeSnapshot(),
+    getWorkspaceState: () => app.getWorkspaceState(),
+    selectFeature: (featureId: string | null) => app.selectFeature(featureId),
+    duplicateFeature: (featureId: string) => app.duplicateFeature(featureId),
+    deleteFeature: (featureId: string) => app.deleteFeature(featureId),
     fireMapClick: (lat: number, lon: number) => renderer.fireMapClickForTest(lat, lon),
     addTestShape: (type: string) => app.addTestShape(type as 'polyline' | 'polygon' | 'circle' | 'rectangle' | 'arrow'),
     openTextEditor: (layer: unknown) => {

@@ -1,4 +1,4 @@
-import type { Coordinate, MapView, ProjectDocumentV2, ProjectFeature } from '../../domain/model';
+import type { Coordinate, FeatureId, MapView, ProjectDocumentV2, ProjectFeature } from '../../domain/model';
 
 export interface BasemapOption {
   id: string;
@@ -11,6 +11,8 @@ export interface GeocodingPreview {
   label: string;
   coordinate: Coordinate;
 }
+
+export type FeatureChangePhase = 'update' | 'commit';
 
 export interface MapRenderer {
   setView(view: MapView): void;
@@ -28,6 +30,7 @@ export interface MapRenderer {
   getBasemapId(): string;
   getBasemapOptions(): readonly BasemapOption[];
   onMapClick(listener: (coordinate: Coordinate) => void): () => void;
+  onFeatureSelect(listener: (featureId: FeatureId | null) => void): () => void;
   showSearchResult(preview: GeocodingPreview, onAdd: () => void): void;
   clearSearchResult(): void;
   destroy(): void;
