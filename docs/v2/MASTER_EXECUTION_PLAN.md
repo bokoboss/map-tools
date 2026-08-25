@@ -9,6 +9,16 @@ Map Tools v2 is managed as **three macro phases**, not seven independent phases.
 
 The objective is to minimize expensive implementation reasoning in Codex. ChatGPT owns specification, decomposition, acceptance criteria, test vectors, architecture decisions, and review. Codex should primarily execute code changes, run local/browser tests, fix concrete failures, and produce qualification evidence.
 
+## Preferred Codex run count
+
+For the core modernization, prefer approximately **three main Codex runs**:
+
+1. **Run 1 — Combined A1+A2:** characterization/CI checkpoint first, then Project Schema v2 + safe/lossless persistence in the same controlled PR.
+2. **Run 2 — A3:** Vite + TypeScript modularization after Run 1 is qualified.
+3. **Run 3 — B:** productive workspace UX, object manager, inspector, undo/redo, dirty state, and search isolation.
+
+Macro Phase C is expansion work and should be run only for the C1/C2/C3 capabilities actually needed. It is not required to block use of the qualified v2 Core.
+
 ## Macro Phase A — Reliable Core
 
 Combines former Phase 0, Phase 1, and Phase 2.
@@ -22,6 +32,20 @@ A testable, lossless, safe, maintainable Map Tools core.
 - **A1 — Characterization + CI**: issue #2
 - **A2 — Project Schema v2 + safe/lossless persistence**: issue #3
 - **A3 — Vite + TypeScript modularization**: issue #4
+
+### Preferred execution
+
+A1 and A2 should normally be executed together using `CODEX_A1_A2_COMBINED_PACKET.md`.
+
+The combined implementation must preserve the safety rationale of A1 through a mandatory checkpoint:
+
+1. characterize current useful behavior;
+2. run and record the baseline suite;
+3. commit the A1 checkpoint with a clean tree;
+4. only then modify persistence/security behavior for A2;
+5. rerun the full A1 suite plus A2 acceptance/security/round-trip tests.
+
+A3 remains separate because it is a structural migration and is easier to review after persistence semantics are already qualified.
 
 ### Completion gate
 
@@ -45,7 +69,7 @@ The app is comfortable for real projects containing dozens to hundreds of map ob
 
 ### Work package
 
-- **B1 — Workspace UX foundation**: issue #5
+- **B — Workspace UX foundation**: issue #5
 
 ### Completion gate
 
@@ -79,13 +103,13 @@ Map Tools can create a typical engineering study map, manage semantic engineerin
 
 ## Why work packages remain separate
 
-Three macro phases reduce project-management overhead, but implementation should still use bounded pull requests. Combining test harness, persistence migration, UI redesign, engineering symbols, and report export into one code branch would make failures difficult to isolate and review.
+Three macro phases reduce project-management overhead, but implementation should still use bounded pull requests. Combining architecture migration, workspace redesign, engineering symbols, and report export into one code branch would make failures difficult to isolate and review.
 
-Therefore:
+The important distinction is:
 
-> **3 macro phases, several small implementation PRs.**
+> **3 macro phases; approximately 3 core Codex runs; optional C-series expansion runs.**
 
-This is intentionally different from seven large project phases.
+The number of work-package documents or GitHub issues does not imply the number of independent user-facing phases.
 
 ## ChatGPT vs Codex division of work
 
@@ -132,3 +156,11 @@ Every Codex run should begin from an existing issue plus an authoritative execut
 7. required evidence and handoff format.
 
 If Codex discovers a product/architecture ambiguity, stop implementation at the ambiguity and return it for ChatGPT resolution rather than letting the implementation silently redefine the product.
+
+## Current prepared execution path
+
+- Run 1 branch: `codex/a1-a2-core-safety-persistence`
+- Run 1 packet: `CODEX_A1_A2_COMBINED_PACKET.md`
+- Run 2 packet: `CODEX_A3_PACKET.md`
+- Run 3 packet: `CODEX_B_PACKET.md`
+- Optional expansion framework: `CODEX_C_PACKET.md`
