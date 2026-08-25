@@ -21,7 +21,13 @@ const store = new ProjectStore(createEmptyProject({ name: 'Untitled Map', appVer
 let renderer: LeafletRenderer;
 
 const createRenderer = (): LeafletRenderer => new LeafletRenderer(mapElement, {
-  onFeatureChanged: (feature) => store.updateFeature(feature),
+  onFeatureChanged: (feature, phase) => {
+    store.updateFeature(feature, `${phase === 'update' ? 'Update' : 'Edit'} ${feature.name}`);
+    if (phase === 'commit') store.endTransaction();
+  },
+  onFeatureInteractionStart: (featureId, label) => {
+    if (store.getSnapshot().features.some((feature) => feature.id === featureId)) store.beginTransaction(label);
+  },
   onFeatureAction: (action, featureId) => app?.handleRendererAction(action, featureId),
   onMapViewChanged: (view) => {
     const current = store.getSnapshot().mapView;
@@ -75,6 +81,10 @@ if (new URLSearchParams(window.location.search).has('test')) {
     getDrawnLayers: () => renderer.getDrawnLayers(),
     runtimeSnapshot: () => renderer.runtimeSnapshot(),
     getWorkspaceState: () => app.getWorkspaceState(),
+    getHistoryState: () => store.getHistoryState(),
+    isDirty: () => store.isDirty(),
+    undo: () => store.undo(),
+    redo: () => store.redo(),
     selectFeature: (featureId: string | null) => app.selectFeature(featureId),
     duplicateFeature: (featureId: string) => app.duplicateFeature(featureId),
     deleteFeature: (featureId: string) => app.deleteFeature(featureId),

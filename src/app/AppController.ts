@@ -42,6 +42,7 @@ export class AppController {
   private readonly workspace: WorkspaceController;
   private readonly unsubscribeStore: () => void;
   private readonly unsubscribeMapClick: () => void;
+  private readonly keyboardHandler = (event: KeyboardEvent): void => this.handleKeyboard(event);
 
   private markerToEditId: string | null = null;
   private shapeToEditId: string | null = null;
@@ -152,6 +153,7 @@ export class AppController {
     this.populateBasemaps();
     this.populatePalette();
     this.renderer.renderProject(this.store.getSnapshot());
+    document.addEventListener('keydown', this.keyboardHandler);
   }
 
   setDrawingAdapter(drawing: DrawingAdapter): void {
@@ -165,6 +167,7 @@ export class AppController {
     this.unsubscribeMapClick();
     this.workspace.destroy();
     this.drawing.destroy();
+    document.removeEventListener('keydown', this.keyboardHandler);
   }
 
   captureProjectDocument() {
@@ -313,6 +316,60 @@ export class AppController {
     this.rotationSlider.addEventListener('input', () => this.updateRotation());
     this.closeRotateModalBtn.addEventListener('click', () => this.rotateModal.classList.add('hidden'));
     this.closeShapeEditBtn.addEventListener('click', () => this.hideAllModals());
+  }
+
+  private handleKeyboard(event: KeyboardEvent): void {
+    const key = event.key.toLowerCase();
+    const modifier = event.ctrlKey || event.metaKey;
+    const editable = this.isEditableTarget(event.target);
+
+    if (event.key === 'Escape') {
+      if (this.activeDrawTool || this.isAddingText) {
+        this.stopAllDrawing();
+        this.hideAllModals();
+        this.store.cancelTransaction();
+      } else if (this.hasOpenModal()) {
+        this.hideAllModals();
+        this.store.cancelTransaction();
+      } else this.workspace.clearSelection();
+      event.preventDefault();
+      return;
+    }
+
+    if (modifier && key === 's') {
+      event.preventDefault();
+      this.saveProject();
+      return;
+    }
+
+    if (editable) return;
+
+    if (modifier && key === 'z') {
+      event.preventDefault();
+      if (event.shiftKey) this.store.redo();
+      else this.store.undo();
+      return;
+    }
+    if (modifier && key === 'y') {
+      event.preventDefault();
+      this.store.redo();
+      return;
+    }
+    if (event.key === 'Delete' || event.key === 'Backspace') {
+      const selected = this.workspace.getState().selectedFeatureId;
+      if (!selected) return;
+      event.preventDefault();
+      this.workspace.deleteFeature(selected);
+    }
+  }
+
+  private isEditableTarget(target: EventTarget | null): boolean {
+    return target instanceof HTMLElement && target.matches('input, textarea, select, [contenteditable="true"]');
+  }
+
+  private hasOpenModal(): boolean {
+    return [this.pinModal, this.radiusModal, this.colorPickerModal, this.shapeEditModal, this.textModal, this.rotateModal, this.deleteConfirmModal, this.deleteAllConfirmModal, this.infoModal]
+      .some((modal) => !modal.classList.contains('hidden'));
   }
 
   private togglePanel(panel: HTMLElement, others: HTMLElement[]): void {
