@@ -29,10 +29,17 @@ The older 0–6 sequence is retained only as bounded work packages / PR slices, 
 
 ## Codex execution packets
 
-- [`CODEX_PHASE_0_PACKET.md`](./CODEX_PHASE_0_PACKET.md) — A1 characterization/test-harness packet.
-- [`CODEX_PHASE_1_PACKET.md`](./CODEX_PHASE_1_PACKET.md) — A2 Project Schema v2 + safe persistence packet.
-- [`CODEX_A3_PACKET.md`](./CODEX_A3_PACKET.md) — A3 Vite + TypeScript modularization packet.
-- [`CODEX_B_PACKET.md`](./CODEX_B_PACKET.md) — Macro Phase B workspace packet.
+Preferred run structure:
+
+1. [`CODEX_A1_A2_COMBINED_PACKET.md`](./CODEX_A1_A2_COMBINED_PACKET.md) — **preferred combined first run**: characterization/CI first, mandatory baseline checkpoint, then Project Schema v2 + safe/lossless persistence; closes #2 and #3 when accepted.
+2. [`CODEX_A3_PACKET.md`](./CODEX_A3_PACKET.md) — second run: Vite + TypeScript modularization.
+3. [`CODEX_B_PACKET.md`](./CODEX_B_PACKET.md) — third core run: productive workspace, object manager, inspector, undo/redo, search isolation.
+4. [`CODEX_C_PACKET.md`](./CODEX_C_PACKET.md) — optional/need-driven engineering expansion framework for C1/C2/C3.
+
+Supporting legacy-detail packets:
+
+- [`CODEX_PHASE_0_PACKET.md`](./CODEX_PHASE_0_PACKET.md) — detailed A1-only notes if needed.
+- [`CODEX_PHASE_1_PACKET.md`](./CODEX_PHASE_1_PACKET.md) — detailed A2-only notes if needed.
 
 ## Canonical fixtures
 
@@ -50,7 +57,8 @@ When documents appear to conflict, use this order:
 5. `ARCHITECTURE.md` for technical boundaries;
 6. focused UX/tool/export specifications for their respective surfaces;
 7. `PRODUCT_SPEC.md` for overall product behavior/scope;
-8. `MASTER_EXECUTION_PLAN.md` / `ROADMAP.md` for sequencing and work packaging.
+8. `MASTER_EXECUTION_PLAN.md` / `ROADMAP.md` for sequencing and work packaging;
+9. focused Codex packet for the active work package.
 
 Implementation findings may justify a planning update, but requirements should be changed explicitly rather than silently bypassed.
 
