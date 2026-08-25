@@ -63,6 +63,19 @@ test('duplicate IDs, invalid coordinates, and invalid geometry are rejected', ()
   assert.throws(() => schema.normalizeProject(invalidGeometry), /radiusM/);
 });
 
+test('invalid style values and oversized project structures are rejected', () => {
+  const base = schema.deserializeProject(mixedFixture).document;
+
+  const invalidStyle = schema.clone(base);
+  invalidStyle.features[0].style.opacity = 2;
+  assert.throws(() => schema.normalizeProject(invalidStyle), /opacity/);
+
+  const oversized = schema.clone(base);
+  const template = schema.clone(base.features[0]);
+  oversized.features = Array.from({ length: 5001 }, (_, index) => ({ ...schema.clone(template), id: `oversized-feature-${index}` }));
+  assert.throws(() => schema.normalizeProject(oversized), /at most 5000 items/);
+});
+
 test('unsupported schema versions and malformed JSON fail before a candidate can be used', () => {
   assert.throws(() => schema.deserializeProject('{"schemaVersion":99}'), /Unsupported project schema version/);
   assert.throws(() => schema.deserializeProject('{'), /Invalid project JSON/);
