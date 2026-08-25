@@ -1,0 +1,31 @@
+{
+  "markers": [
+    {
+      "labelText": "Legacy marker",
+      "markerColor": "#2563eb",
+      "latlng": { "lat": 13.7563, "lng": 100.5018 },
+      "radii": [
+        { "distance": 500, "color": "#3388ff" },
+        { "distance": 1000, "color": "#e11d48" }
+      ]
+    }
+  ],
+  "drawnShapes": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "properties": { "style": { "color": "#10b981", "weight": 3 } },
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [[100.5, 13.75], [100.502, 13.751]]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": { "radius": 250, "style": { "color": "#f59e0b", "fillOpacity": 0.2 } },
+        "geometry": { "type": "Point", "coordinates": [100.5018, 13.7563] }
+      }
+    ]
+  }
+}
