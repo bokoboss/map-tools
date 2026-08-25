@@ -7,6 +7,7 @@ export class RendererHost implements MapRenderer {
   private readonly featureSelectListeners = new Set<(featureId: FeatureId | null) => void>();
   private mapClickUnsubscribers = new Map<(coordinate: Coordinate) => void, () => void>();
   private featureSelectUnsubscribers = new Map<(featureId: FeatureId | null) => void, () => void>();
+  private selectedFeatureId: FeatureId | null = null;
 
   constructor(renderer: MapRenderer) {
     this.current = renderer;
@@ -19,6 +20,7 @@ export class RendererHost implements MapRenderer {
     previous.destroy();
     this.attachListeners();
     this.current.renderProject(project);
+    this.current.selectFeature(this.selectedFeatureId);
   }
 
   replaceWith(factory: () => MapRenderer, project: ProjectDocumentV2): MapRenderer {
@@ -27,19 +29,27 @@ export class RendererHost implements MapRenderer {
     this.current = factory();
     this.attachListeners();
     this.current.renderProject(project);
+    this.current.selectFeature(this.selectedFeatureId);
     return this.current;
   }
 
   setView(view: MapView): void { this.current.setView(view); }
   getView(): MapView { return this.current.getView(); }
-  renderProject(project: ProjectDocumentV2): void { this.current.renderProject(project); }
+  renderProject(project: ProjectDocumentV2): void {
+    if (this.selectedFeatureId && !project.features.some((feature) => feature.id === this.selectedFeatureId)) this.selectedFeatureId = null;
+    this.current.renderProject(project);
+    this.current.selectFeature(this.selectedFeatureId);
+  }
   upsertFeature(feature: ProjectFeature): void { this.current.upsertFeature(feature); }
   removeFeature(featureId: string): void { this.current.removeFeature(featureId); }
   setFeatureVisibility(featureId: string, visible: boolean): void { this.current.setFeatureVisibility(featureId, visible); }
   setLabelsVisible(visible: boolean): void { this.current.setLabelsVisible(visible); }
   setFeatureEditable(featureId: string, enabled: boolean): void { this.current.setFeatureEditable(featureId, enabled); }
   toggleFeatureEditable(featureId: string): void { this.current.toggleFeatureEditable(featureId); }
-  selectFeature(featureId: string | null): void { this.current.selectFeature(featureId); }
+  selectFeature(featureId: string | null): void {
+    this.selectedFeatureId = featureId;
+    this.current.selectFeature(featureId);
+  }
   fitFeature(featureId: string): void { this.current.fitFeature(featureId); }
   setBasemap(basemapId: string): boolean { return this.current.setBasemap(basemapId); }
   getBasemapId(): string { return this.current.getBasemapId(); }

@@ -58,3 +58,25 @@ test('group toggles preserve child flags and delete-by-ungrouping keeps features
   expect(afterDelete.feature).toBeTruthy();
   expect(afterDelete.feature.groupId).toBeNull();
 });
+
+test('renderer reinitialization preserves stable-ID workspace selection', async ({ page }) => {
+  await boot(page);
+  await loadDenseFixture(page);
+  const id = 'text-annotation-03';
+  await page.locator(`.workspace-feature-row[data-feature-id="${id}"] [data-action="select-feature"]`).click();
+  await page.evaluate(() => window.__mapToolsTest.reinitializeRenderer());
+  await expect.poll(() => page.evaluate(() => window.__mapToolsTest.getWorkspaceState().selectedFeatureId)).toBe(id);
+  await expect(page.locator(`.workspace-feature-row[data-feature-id="${id}"]`)).toHaveAttribute('aria-selected', 'true');
+});
+
+test('group creation and rename are available from the workspace panel', async ({ page }) => {
+  await boot(page);
+  await loadDenseFixture(page);
+  page.once('dialog', dialog => dialog.accept('Field Notes'));
+  await page.locator('#add-group-btn').click();
+  await expect(page.locator('.workspace-group').filter({ hasText: 'Field Notes' })).toHaveCount(1);
+  const group = page.locator('.workspace-group').filter({ hasText: 'Field Notes' });
+  page.once('dialog', dialog => dialog.accept('Field Notes Renamed'));
+  await group.locator('[data-action="rename-group"]').click();
+  await expect(page.locator('.workspace-group').filter({ hasText: 'Field Notes Renamed' })).toHaveCount(1);
+});

@@ -3,7 +3,7 @@ import type { Coordinate, ProjectFeature } from '../domain/model';
 import { deserializeProject, normalizeProject, serializeProject } from '../persistence/projectSchema';
 import { ProjectStore } from '../store/ProjectStore';
 import type { DrawTool, DrawnFeatureDraft, DrawingAdapter } from '../drawing/DrawingAdapter';
-import type { GeocodingService } from '../geocoding/GeocodingService';
+import type { GeocodingResult, GeocodingService } from '../geocoding/GeocodingService';
 import { exportMapToPng } from '../export/QuickPngExporter';
 import type { FeatureAction, GeocodingPreview, MapRenderer } from '../map/renderer/MapRenderer';
 import { WorkspaceController } from '../workspace/WorkspaceController';
@@ -56,6 +56,7 @@ export class AppController {
   private isAddingText = false;
   private activeDrawTool: DrawTool | null = null;
   private areLabelsVisible = false;
+  private searchResultData: GeocodingResult[] = [];
 
   private readonly controlsContainer = requiredElement<HTMLElement>('controls-container');
   private readonly layerPanel = requiredElement<HTMLElement>('layer-panel');
@@ -666,24 +667,64 @@ export class AppController {
   private async performSearch(): Promise<void> {
     const query = this.searchInput.value.trim();
     if (!query) return;
-    this.searchResults.textContent = 'กำลังค้นหา...';
+    this.searchResultData = [];
+    this.searchResults.textContent = 'Searching…';
     try {
       const results = await this.geocoder.search(query);
       if (!results.length) {
-        this.searchResults.textContent = 'ไม่พบผลลัพธ์';
+        this.searchResults.textContent = 'No results found.';
         return;
       }
-      const result = results[0];
-      this.searchResults.textContent = results.length > 1 ? `${results.length} ผลลัพธ์ — แสดงผลลัพธ์แรก` : '';
-      const preview: GeocodingPreview = { label: result.label, coordinate: [result.lon, result.lat] };
-      this.renderer.showSearchResult(preview, () => {
-        this.store.addFeature({ id: createId('feature'), type: 'marker', name: result.label, groupId: null, visible: true, locked: false, geometry: { kind: 'point', coordinates: preview.coordinate }, style: { color: '#475569', symbolId: 'pin' }, properties: { radii: [] } });
-        this.renderer.clearSearchResult();
-      });
+      this.searchResultData = results;
+      this.renderSearchResults();
+      this.showSearchPreview(results[0]);
     } catch (error) {
       console.error('Search error:', error);
-      this.searchResults.textContent = 'เกิดข้อผิดพลาดในการค้นหา';
+      this.searchResults.textContent = 'Search failed. Try again.';
     }
+  }
+
+  private renderSearchResults(): void {
+    this.searchResults.replaceChildren();
+    const summary = document.createElement('p');
+    summary.className = 'search-result-summary';
+    summary.textContent = `${this.searchResultData.length} result${this.searchResultData.length === 1 ? '' : 's'} — select a result to preview it on the map.`;
+    this.searchResults.appendChild(summary);
+    this.searchResultData.forEach((result, index) => {
+      const row = document.createElement('div');
+      row.className = 'search-result';
+      row.dataset.resultId = result.id;
+      const select = document.createElement('button');
+      select.type = 'button';
+      select.className = 'search-result-select';
+      select.textContent = result.label;
+      select.title = `Preview ${result.label}`;
+      select.addEventListener('click', () => this.showSearchPreview(result));
+      const add = document.createElement('button');
+      add.type = 'button';
+      add.className = 'search-result-add';
+      add.textContent = 'Add';
+      add.setAttribute('aria-label', `Add ${result.label} to project`);
+      add.addEventListener('click', () => {
+        this.showSearchPreview(result);
+        this.addSearchResult(result);
+      });
+      row.append(select, add);
+      if (index === 0) row.classList.add('is-previewed');
+      this.searchResults.appendChild(row);
+    });
+  }
+
+  private showSearchPreview(result: GeocodingResult): void {
+    const preview: GeocodingPreview = { label: result.label, coordinate: [result.lon, result.lat] };
+    this.searchResults.querySelectorAll<HTMLElement>('.search-result').forEach((row) => row.classList.toggle('is-previewed', row.dataset.resultId === result.id));
+    this.renderer.showSearchResult(preview, () => this.addSearchResult(result));
+  }
+
+  private addSearchResult(result: GeocodingResult): void {
+    const coordinate: Coordinate = [result.lon, result.lat];
+    this.store.addFeature({ id: createId('feature'), type: 'marker', name: result.label, groupId: null, visible: true, locked: false, geometry: { kind: 'point', coordinates: coordinate }, style: { color: '#475569', symbolId: 'pin' }, properties: { radii: [] } }, 'Add search result');
+    this.renderer.clearSearchResult();
   }
 
   private startDrawing(tool: DrawTool): void {

@@ -17,6 +17,8 @@ import { ProjectStore } from './store/ProjectStore';
 const mapElement = document.getElementById('map');
 if (!mapElement) throw new Error('Missing #map element');
 
+const testSurfaceEnabled = new URLSearchParams(window.location.search).has('test');
+
 const store = new ProjectStore(createEmptyProject({ name: 'Untitled Map', appVersion: '2.0.0' }));
 let renderer: LeafletRenderer;
 
@@ -40,7 +42,7 @@ const rendererHost = new RendererHost(renderer);
 const drawing = new LeafletDrawAdapter(renderer);
 const app = new AppController(store, rendererHost, drawing, new NominatimGeocoder());
 
-if (new URLSearchParams(window.location.search).has('test')) {
+if (testSurfaceEnabled) {
   const browserWindow = window as unknown as Window & {
     L: typeof L;
     MapToolsSchema: {
