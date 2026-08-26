@@ -1,112 +1,131 @@
 # Map Tools v2 — Implementation Roadmap
 
 Status: execution roadmap  
-Date: 2026-08-25
+Date: 2026-08-26
 
 ## 1. Delivery strategy
 
-Map Tools v2 is organized into **three macro phases**. The older Phase 0–6 naming is retained only as bounded work packages / pull-request slices so implementation remains reviewable.
+Map Tools v2 is organized into three macro phases, but a product-acceptance hardening gate is inserted between Macro B and visible Macro C/3D work.
 
 The guiding rule is:
 
-> Reliable core first, productive workspace second, engineering delivery features third.
+> Reliable core first, productive workspace second, **2D product acceptance third**, then engineering/3D expansion.
 
-Do not combine unrelated high-risk changes into a single implementation branch merely to reduce the apparent phase count.
+Do not confuse architecture qualification with product usability qualification. A test-green refactor is not sufficient if a useful user workflow has disappeared or Help documents behavior that production no longer provides.
 
-## 2. Macro Phase A — Reliable Core
+## 2. Macro Phase A — Reliable Core — COMPLETE
 
-This combines former Phase 0, Phase 1, and Phase 2.
+A1/A2/A3 are complete and accepted.
 
-### A1 — Characterization + CI (`#2`)
+### A1 — Characterization + CI (`#2`) — COMPLETE
 
-Goal: make current useful behavior observable before structural changes.
-
-Required outcomes:
-
-- deterministic browser characterization for marker, radii, shapes, arrow, text, search, and save/open;
+- deterministic marker/radius/shape/arrow/text/search/save-open characterization;
 - representative v1 fixtures;
-- documented known persistence defects;
-- repeatable local qualification;
-- CI/build smoke from a clean checkout.
+- repeatable local qualification and CI.
 
-### A2 — Project Schema v2 + safe/lossless persistence (`#3`)
-
-Goal: eliminate silent project-data loss and unsafe project loading.
-
-Required outcomes:
+### A2 — Project Schema v2 + safe/lossless persistence (`#3`) — COMPLETE
 
 - versioned Project Schema v2;
-- stable IDs independent of Leaflet runtime IDs;
-- explicit semantic persistence for marker, text, polyline, polygon, rectangle, circle, arrow, and marker radii;
-- validate-before-replace project loading;
-- v1 migration for recoverable content;
-- safe plain-text rendering;
-- complete round-trip/security tests.
+- stable IDs;
+- semantic feature persistence;
+- validate-before-replace;
+- v1 migration;
+- safe literal text;
+- round-trip/security coverage.
 
-### A3 — Vite + TypeScript modularization (`#4`)
+### A3 — Vite + TypeScript renderer-ready modularization (`#4`) — COMPLETE
 
-Goal: make the qualified core maintainable without materially changing behavior.
+- Vite + strict TypeScript;
+- renderer-neutral domain/store/persistence;
+- `MapRenderer` / `RendererHost` boundary;
+- Leaflet implementation isolated behind adapter;
+- npm-managed build and CI;
+- future renderer readiness.
 
-Required outcomes:
+Accepted A3 squash merge: `614bb814ac83891c8150d285efbcdbaece7ecd26`.
 
-- Vite build;
-- TypeScript strict mode;
-- npm-managed dependencies and lockfile;
-- domain/store/map/persistence/geocoding/measurement boundaries;
-- drawing adapter around the current drawing library;
-- no persistence dependence on Leaflet runtime objects;
-- lint/type-check/build CI;
-- static/GitHub Pages-compatible production output.
+## 3. Macro Phase B — Productive Workspace — COMPLETE
 
-### Macro Phase A completion gate
+Issue #5 is complete.
 
-Do not proceed to major UX or engineering feature expansion until all are true:
+Delivered:
 
-- characterization suite is deterministic and green;
-- supported feature types survive two save/open cycles;
-- invalid imports preserve active work;
-- malicious text payloads render literally and do not execute;
-- project/domain state is independent of Leaflet runtime identity;
-- clean-checkout production build succeeds;
-- CI is green.
+- stable-ID map/workspace selection;
+- Objects / Inspector workspace;
+- persisted groups plus Ungrouped;
+- visibility and lock state;
+- rename/duplicate/zoom/delete/group assignment;
+- bounded domain undo/redo;
+- saved-baseline dirty semantics;
+- keyboard Escape/Delete/Undo/Redo/Save;
+- deterministic multiple-result transient search;
+- dense 40-object UAT;
+- responsive/accessibility smoke;
+- renderer reinitialization preserving stable-ID selection.
 
-## 3. Macro Phase B — Productive Workspace
+Macro B accepted via PR #12, squash merge:
 
-Corresponds to former Phase 3 (`#5`).
+`501f996217857945e3008bae226ab7d19d5573e8`
 
-### Goal
+Macro B means the architecture/workspace is qualified. It does **not** by itself mean every historical 2D interaction has product acceptance.
 
-Make projects with many objects manageable and make editing mistakes recoverable.
+## 4. B4 — 2D Product Acceptance / Interaction Parity — MANDATORY NEXT GATE (`#13`)
 
-### Work
+### Why B4 exists
 
-- explicit selection model;
-- object/layer panel;
-- property inspector;
-- groups/layers;
-- visibility and lock;
-- rename;
-- duplicate;
-- zoom to feature;
-- undo/redo command history;
-- keyboard Escape/Delete behavior;
-- dirty/saved indicator;
-- search-result isolation and explicit Add to project action.
+Post-Macro-B manual use found interaction parity regressions that the earlier characterization matrix did not cover adequately.
 
-### Acceptance
+The clearest example:
 
-- dense-project UAT succeeds;
-- map and panel selection stay synchronized;
-- group visibility/lock semantics pass tests;
-- core undo/redo matrix passes;
-- search no longer silently changes project content;
-- responsive smoke matrix passes.
+- legacy v1 implemented a custom right-click context menu on blank map and objects;
+- current HTML/Help still advertises it;
+- the current TypeScript production renderer/application has no live context-menu event path.
 
-## 4. Macro Phase C — Engineering Delivery Toolkit
+Additional product gaps identified during audit:
 
-Combines former Phase 4, Phase 5, and Phase 6.
+- reverse geocoding disappeared from the typed geocoding contract;
+- toolbar Add Pin falls back to the map center instead of using an explicit exact-placement workflow;
+- effective feature/group lock is not yet enforced consistently across every inspector/keyboard/context mutation surface;
+- Help is not fully synchronized with the current productive workspace.
 
-The three work packages below can be prioritized by immediate project need after Macro Phase B is qualified; they are not required to run in a fixed sequence.
+### B4 authoritative specifications
+
+- `docs/v2/B4_PARITY_MATRIX.md`
+- `docs/v2/B4_2D_PRODUCT_ACCEPTANCE.md`
+- `docs/v2/CODEX_B4_PACKET.md`
+
+### B4 required outcomes
+
+- renderer-neutral context-request event using stable IDs and WGS84 coordinates;
+- blank-map desktop right-click: Add marker here + exact coordinate + reverse-geocoded address/status;
+- feature right-click: marker/text/shape/arrow actions routed to canonical application/store mutations;
+- renderer-host listener rebind across renderer replacement;
+- safe, stale-resistant reverse geocoding through the geocoding abstraction;
+- toolbar Add Pin becomes exact placement mode and provides the non-right-click touch/mobile path;
+- effective lock blocks prohibited mutations across map, popup, context menu, inspector, keyboard and group state;
+- Help matches actual production behavior;
+- real browser product journeys prove create → context edit → history → save/reopen workflows.
+
+### B4 completion gate
+
+All must be true:
+
+- every B4 parity matrix item required for product acceptance is PASS / IMPROVED / intentionally replaced;
+- all existing A/B tests remain green;
+- B4 product journeys pass in development and production preview;
+- static production artifact smoke passes;
+- production path exposes no test globals;
+- no renderer runtime objects leak across the renderer boundary;
+- final qualification reports `B4_2D_PRODUCT_ACCEPTANCE_QUALIFIED`;
+- control-plane review accepts `READY_TO_START_C4_1`.
+
+**Do not start visible C4.1 implementation before this gate is accepted.**
+
+## 5. Macro Phase C — Engineering Delivery Toolkit
+
+Macro C begins only after B4 product acceptance.
+
+The C work packages can then be prioritized by actual need rather than a rigid sequence.
 
 ### C1 — Traffic/transport engineering toolkit (`#6`)
 
@@ -148,34 +167,49 @@ Second wave:
 - opacity/lock/transform;
 - controlled georeferencing workflow.
 
-### Macro Phase C completion gate
+### C4 — 2.5D/3D engineering visualization (`#10`)
 
-A typical engineering study map can be created, managed, exported to a report-ready figure, and exchanged with common GIS/survey data without semantic or coordinate ambiguity.
+C4 architecture is technically possible after A3/B, but product sequencing requires B4 first.
 
-## 5. Pull-request strategy
+C4.1 first slice after B4:
 
-The project has three macro phases, but implementation should remain sliced into small verifiable PRs.
+- `2D | 3D` mode switch;
+- MapLibre renderer consuming the same canonical store/project;
+- pitch/bearing/reset controls;
+- supported building context;
+- basic project polygon extrusion;
+- project annotations aligned to the same coordinates;
+- switch back to 2D without semantic/project mutation.
 
-Recommended order:
+Do not let C4 bypass the B4 context/lock/product interaction rules.
 
-1. `A1-test-harness`
-2. `A2-project-schema-persistence`
-3. `A3-vite-typescript-modularization`
-4. `B1-workspace-selection-object-panel`
-5. `B2-history-search-isolation` if B1 becomes too large
-6. C-series PRs according to priority
+## 6. Recommended pull-request order from current state
 
-Avoid a single `rewrite-v2` PR.
+Completed:
 
-## 6. ChatGPT/Codex operating model
+1. A1+A2 — PR #9
+2. A3 — PR #11
+3. Macro B — PR #12
 
-ChatGPT should perform as much non-runtime work as possible:
+Next:
+
+4. **B4 — `codex/b4-2d-product-acceptance`**
+
+Then, according to need:
+
+5. C4.1 3D Preview, or C1/C2/C3 if a nearer engineering deliverable has higher value.
+
+Avoid a broad `rewrite-v2` or combining B4 with 3D.
+
+## 7. ChatGPT/Codex operating model
+
+ChatGPT/control plane should continue to own:
 
 - product/UX reasoning;
-- architecture;
-- data contracts;
-- test matrices and deterministic fixtures;
-- acceptance criteria;
+- parity audit;
+- renderer/application contracts;
+- deterministic acceptance journeys;
+- test matrices;
 - issue/PR decomposition;
 - GitHub diff/CI review;
 - qualification review;
@@ -183,50 +217,45 @@ ChatGPT should perform as much non-runtime work as possible:
 
 Codex should be used primarily for:
 
-- implementation requiring file-system/runtime iteration;
-- dependency installation;
-- local test/build execution;
-- browser automation/visual validation;
-- debugging concrete failures;
-- producing reproducible qualification evidence.
+- bounded production/test implementation;
+- local dependency/build/runtime work;
+- Playwright/browser iteration;
+- concrete debugging;
+- reproducible qualification evidence.
 
-## 7. Deferred technology decisions
+## 8. v2 2D product release qualification
 
-Evaluate only after Macro Phase A qualification unless a concrete blocker requires earlier action:
+Before calling the 2D v2 experience product-accepted:
 
-- Leaflet-Geoman vs Terra Draw vs continuing Leaflet.draw;
-- Leaflet 2 migration;
-- React or another UI framework;
-- PWA/offline packaging;
-- desktop wrapper.
-
-These are decisions, not current requirements.
-
-## 8. v2 Core release qualification
-
-Before calling the Reliable Core + Productive Workspace complete:
-
-- [ ] all supported feature types survive two save/open cycles;
-- [ ] invalid import preserves active project;
-- [ ] security payload tests pass;
-- [ ] stable IDs verified;
-- [ ] object panel and map selection synchronized;
-- [ ] undo/redo matrix passes;
-- [ ] search-result isolation passes;
-- [ ] responsive smoke matrix passes;
-- [ ] 500-object performance smoke passes;
-- [ ] production build passes;
-- [ ] CI green;
-- [ ] manual UAT scenarios recorded.
+- [x] supported feature types survive save/open;
+- [x] invalid import preserves active project;
+- [x] security payload tests pass;
+- [x] stable IDs verified;
+- [x] object panel and map selection synchronized;
+- [x] undo/redo matrix passes;
+- [x] search-result isolation passes;
+- [x] responsive smoke matrix passes;
+- [x] production build passes;
+- [x] CI green for Macro B;
+- [ ] B4 right-click/context parity passes;
+- [ ] reverse-geocode context workflow passes;
+- [ ] exact toolbar/touch marker placement passes;
+- [ ] effective lock is enforced across every mutation surface;
+- [ ] B4 real product journeys pass;
+- [ ] Help matches real production interactions;
+- [ ] B4 qualification is accepted.
 
 ## 9. Stop conditions
 
-Do not proceed to engineering feature expansion if any remain unresolved:
+Do not proceed to visible 3D or other major product expansion if any remain unresolved:
 
-- save/open can silently lose supported feature semantics;
-- unsafe HTML injection remains possible from project text;
+- a documented core 2D interaction is absent or misleading;
+- context/placement actions can create the wrong coordinate silently;
+- lock state can be bypassed through an alternate edit surface;
+- save/open can silently lose supported semantics;
+- unsafe project/geocoder text can execute;
 - failed import can destroy active project;
-- persistence requires Leaflet runtime objects;
-- core test suite is unreliable or non-deterministic.
+- persistence requires renderer runtime objects;
+- core/browser test suite is unreliable.
 
-See `MASTER_EXECUTION_PLAN.md` for the authoritative three-phase management view.
+See `MASTER_EXECUTION_PLAN.md` for the three-macro-phase management view and `B4_2D_PRODUCT_ACCEPTANCE.md` for the immediate product gate.
