@@ -55,6 +55,7 @@ test('renderer replacement preserves the canonical project snapshot', () => {
     getBasemapId: () => project.mapView.basemapId,
     getBasemapOptions: () => [],
     onMapClick: () => () => undefined,
+    onContextRequest: () => () => undefined,
     showSearchResult: () => undefined,
     clearSearchResult: () => undefined,
     onFeatureSelect: () => () => undefined,

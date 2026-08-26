@@ -122,7 +122,7 @@
                 <div>
                     <h3 class="text-sm font-semibold text-gray-600 mb-2">เครื่องมือหมุด</h3>
                     <div class="grid grid-cols-2 gap-2">
-                        <button id="add-pin-btn" class="flex items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="เพิ่มหมุดใหม่">
+                        <button id="add-pin-btn" class="flex items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="Add pin: click or tap the map to place" aria-label="Add pin: click or tap the map to place" aria-pressed="false" type="button">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                         </button>
                         <button id="toggle-labels-btn" class="flex items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="แสดงข้อความ">
@@ -166,10 +166,13 @@
         </div>
     </div>
 
+    <div id="placement-status" class="placement-status hidden" role="status" aria-live="polite"></div>
+
     <!-- Modal for creating/editing pin -->
     <div id="pin-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 z-[2000] flex items-center justify-center p-4">
         <div class="modal-content bg-white p-6 rounded-lg shadow-xl w-full max-w-sm">
             <h3 id="modal-title" class="text-xl font-bold text-gray-800 mb-4"></h3>
+            <p id="pin-coordinate-preview" class="pin-coordinate-preview" aria-live="polite"></p>
             <input type="text" id="pin-label-input" class="w-full p-2 text-sm border border-gray-300 rounded-lg mb-4" placeholder="ข้อความของหมุด">
             <div class="mb-4">
                 <p class="text-sm font-medium text-gray-600 mb-2">สีสำหรับหมุด:</p>
@@ -322,7 +325,7 @@
     </div>
 
     <!-- Custom Context Menu -->
-    <div id="context-menu" class="hidden absolute z-[5000] bg-white rounded-lg shadow-xl border border-gray-200 min-w-[180px] py-1">
+    <div id="context-menu" class="hidden fixed z-[5000] bg-white rounded-lg shadow-xl border border-gray-200 min-w-[210px] py-1" role="menu" aria-label="Map context actions" tabindex="-1">
         <!-- Menu items will be populated by JS -->
     </div>
 
@@ -334,6 +337,18 @@
                 <button id="close-info-btn" class="text-gray-500 hover:text-gray-800 text-3xl leading-none">&times;</button>
             </div>
             <div class="overflow-y-auto space-y-4 text-sm text-gray-700 pr-2">
+                <section id="help-current-workflow" aria-labelledby="help-current-workflow-heading">
+                    <h4 id="help-current-workflow-heading" class="text-lg font-semibold text-gray-800 mb-2">Current Map Tools workflow</h4>
+                    <ul class="list-disc list-inside space-y-1">
+                        <li>Pan by dragging the map and zoom with the wheel or the + / − controls. Use Layers to change the basemap and Search to find places.</li>
+                        <li><strong>Add Pin</strong> enters placement mode. Click or tap an exact map point, then name and save the marker. Escape before placement or Cancel in the editor creates nothing.</li>
+                        <li>On desktop, right-click a blank map point for coordinates, reverse-geocoded address status, and <strong>Add marker here</strong>. Right-click an object for type-specific edit, radius, rotate, style, geometry, and delete actions.</li>
+                        <li>Use <strong>Objects / Inspector</strong> as the universal management path for selection, visibility, locking, properties, grouping, duplicate, zoom, and delete. Context menus are shortcuts, not the only route.</li>
+                        <li>Undo and Redo restore project mutations. The workspace shows <strong>Saved</strong> or <strong>Unsaved changes</strong>; context menus, search previews, and placement mode are transient.</li>
+                        <li>A locked feature or group remains selectable and visible, but protected edits, radius changes, reassignment, and deletion are disabled until it is legitimately unlocked. Visibility can still be toggled.</li>
+                        <li>Touch users can use Add Pin placement and the Objects / Inspector panel instead of right-click. Use Open / Save for project files and Export for a quick PNG.</li>
+                    </ul>
+                </section>
                 <p>ยินดีต้อนรับสู่แอปพลิเคชันเครื่องมือบนแผนที่! นี่คือคู่มือการใช้งานเบื้องต้นเพื่อให้คุณเริ่มต้นได้อย่างรวดเร็ว</p>
                 
                 <div>

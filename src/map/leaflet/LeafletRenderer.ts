@@ -2,7 +2,7 @@ import L from 'leaflet';
 import type { Coordinate, FeatureId, FeatureStyle, MapView, ProjectDocumentV2, ProjectFeature } from '../../domain/model';
 import { clone, effectiveState } from '../../domain/project';
 import { formatArea, formatDistance, polygonAreaSquareMeters, polylineLength } from '../../measurement';
-import type { BasemapOption, FeatureAction, FeatureChangePhase, GeocodingPreview, MapRenderer } from '../renderer/MapRenderer';
+import type { BasemapOption, FeatureAction, FeatureChangePhase, GeocodingPreview, MapContextRequest, MapRenderer } from '../renderer/MapRenderer';
 import { fromLeafletLatLng, toLeafletLatLng, toLeafletLatLngs } from './coordinates';
 
 type RuntimeLayer = L.Layer & {
@@ -70,6 +70,7 @@ export class LeafletRenderer implements MapRenderer {
   private readonly drawnLayers = new Map<string, RuntimeLayer>();
   private readonly mapClickListeners = new Set<(coordinate: Coordinate) => void>();
   private readonly featureSelectListeners = new Set<(featureId: FeatureId | null) => void>();
+  private readonly contextRequestListeners = new Set<(request: MapContextRequest) => void>();
   private readonly callbacks: LeafletRendererCallbacks;
   private currentBasemapId = 'osm-standard';
   private currentBaseLayer: L.Layer;
@@ -104,6 +105,10 @@ export class LeafletRenderer implements MapRenderer {
     this.map.on('click', (event: L.LeafletMouseEvent) => {
       const coordinate = fromLeafletLatLng(event.latlng);
       this.mapClickListeners.forEach((listener) => listener(coordinate));
+    });
+    this.map.on('contextmenu', (event: L.LeafletMouseEvent) => {
+      L.DomEvent.stop(event);
+      this.publishContextRequest(null, event.latlng, event.containerPoint);
     });
     this.map.on('moveend', () => {
       if (this.ignoreNextMoveEnd) {
@@ -235,6 +240,11 @@ export class LeafletRenderer implements MapRenderer {
     return () => this.featureSelectListeners.delete(listener);
   }
 
+  onContextRequest(listener: (request: MapContextRequest) => void): () => void {
+    this.contextRequestListeners.add(listener);
+    return () => this.contextRequestListeners.delete(listener);
+  }
+
   showSearchResult(preview: GeocodingPreview, onAdd: () => void): void {
     this.clearSearchResult();
     const target = toLeafletLatLng(preview.coordinate);
@@ -357,6 +367,18 @@ export class LeafletRenderer implements MapRenderer {
     this.featureSelectListeners.forEach((listener) => listener(featureId));
   }
 
+  private publishContextRequest(featureId: FeatureId | null, latlng: L.LatLng, containerPoint?: L.Point): void {
+    const point = containerPoint ?? this.map.latLngToContainerPoint(latlng);
+    const bounds = this.map.getContainer().getBoundingClientRect();
+    const request: MapContextRequest = {
+      featureId,
+      coordinate: fromLeafletLatLng(latlng),
+      clientPoint: { x: bounds.left + point.x, y: bounds.top + point.y },
+      source: 'mouse'
+    };
+    this.contextRequestListeners.forEach((listener) => listener(request));
+  }
+
   private applySelectionHighlight(): void {
     const selectedId = this.selectedFeatureId;
     for (const [featureId, layer] of this.featureLayers) {
@@ -384,6 +406,10 @@ export class LeafletRenderer implements MapRenderer {
     marker.circleLayerGroup = L.layerGroup();
     marker.bindPopup(this.createMarkerPopupContent(feature), { autoClose: false, closeButton: false });
     marker.on('click', () => this.publishSelection(feature.id));
+    marker.on('contextmenu', (event: L.LeafletMouseEvent) => {
+      L.DomEvent.stop(event);
+      this.publishContextRequest(feature.id, event.latlng, event.containerPoint);
+    });
     marker.on('dragstart', () => {
       marker.closePopup();
       this.activeFeatureInteractions.add(feature.id);
@@ -407,6 +433,10 @@ export class LeafletRenderer implements MapRenderer {
     marker.isTextLabel = true;
     marker.bindPopup(this.createMarkerPopupContent(feature), { autoClose: false, closeButton: false });
     marker.on('click', () => this.publishSelection(feature.id));
+    marker.on('contextmenu', (event: L.LeafletMouseEvent) => {
+      L.DomEvent.stop(event);
+      this.publishContextRequest(feature.id, event.latlng, event.containerPoint);
+    });
     marker.on('dragstart', () => {
       this.activeFeatureInteractions.add(feature.id);
       this.callbacks.onFeatureInteractionStart?.(feature.id, `Move ${feature.name}`);
@@ -438,6 +468,10 @@ export class LeafletRenderer implements MapRenderer {
     const target = this.editTarget(layer);
     if (target && 'bindPopup' in target) {
       (target as L.Path).bindPopup(() => this.createShapePopupContent(featureId), { autoClose: true, closeOnClick: true });
+      target.on('contextmenu', (event: L.LeafletMouseEvent) => {
+        L.DomEvent.stop(event);
+        this.publishContextRequest(featureId, event.latlng, event.containerPoint);
+      });
       target.on('click', (event: L.LeafletMouseEvent) => {
         L.DomEvent.stop(event);
         this.publishSelection(featureId);

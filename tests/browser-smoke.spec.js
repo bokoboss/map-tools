@@ -29,6 +29,7 @@ async function openTools(page) {
 async function addMarker(page, label = 'C-01 marker') {
   await openTools(page);
   await page.locator('#add-pin-btn').click();
+  await page.evaluate(() => window.__mapToolsTest.fireMapClick(13.7563, 100.5018));
   await page.locator('#pin-label-input').fill(label);
   await page.locator('#save-pin-btn').click();
   await expect.poll(() => page.evaluate(() => window.__mapToolsTest.getMarkers().length)).toBe(1);
