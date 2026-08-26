@@ -583,7 +583,7 @@ export class WorkspaceController {
         if (feature.groupId === groupId) feature.groupId = null;
       });
       draft.groups = draft.groups.filter((group) => group.id !== groupId);
-    });
+    }, 'Delete group (ungroup children)');
   }
 
   private matchesFilter(feature: ProjectFeature, groupName: string): boolean {

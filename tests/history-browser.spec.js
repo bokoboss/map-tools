@@ -65,3 +65,42 @@ test('continuous marker drag commits one domain history entry', async ({ page })
   await page.keyboard.press('Control+z');
   await expect.poll(() => page.evaluate(() => window.__mapToolsTest.captureProjectDocument().features.find(feature => feature.type === 'marker').geometry.coordinates)).toEqual([100.5018, 13.7563]);
 });
+
+test('continuous shape geometry edit commits one entry and restores complete geometry', async ({ page }) => {
+  await boot(page);
+  await page.evaluate(() => window.__mapToolsTest.addTestShape('polyline'));
+  await expect.poll(() => page.evaluate(() => window.__mapToolsTest.getDrawnLayers().length)).toBe(1);
+
+  const before = await page.evaluate(() => window.__mapToolsTest.captureProjectDocument().features[0].geometry.coordinates);
+  const historyBeforeEdit = await page.evaluate(() => window.__mapToolsTest.getHistoryState().length);
+  const finalGeometry = [[13.76, 100.51], [13.762, 100.514], [13.765, 100.518]];
+  await page.evaluate(coordinates => {
+    const layer = window.__mapToolsTest.getDrawnLayers()[0];
+    layer.fire('editstart');
+    layer.setLatLngs([[13.755, 100.505], [13.758, 100.51]]);
+    layer.fire('edit');
+    layer.setLatLngs(coordinates);
+    layer.fire('edit');
+    layer.fire('editend');
+  }, finalGeometry);
+
+  await expect.poll(() => page.evaluate(() => window.__mapToolsTest.getHistoryState().length)).toBe(historyBeforeEdit + 1);
+  expect(await page.evaluate(() => window.__mapToolsTest.captureProjectDocument().features[0].geometry.coordinates)).toEqual([
+    [100.51, 13.76],
+    [100.514, 13.762],
+    [100.518, 13.765]
+  ]);
+  expect(before).toEqual([[100.5, 13.75], [100.502, 13.751]]);
+
+  await page.evaluate(() => window.__mapToolsTest.undo());
+  await expect.poll(() => page.evaluate(() => window.__mapToolsTest.captureProjectDocument().features[0].geometry.coordinates)).toEqual(before);
+  await page.evaluate(() => window.__mapToolsTest.redo());
+  await expect.poll(() => page.evaluate(() => window.__mapToolsTest.captureProjectDocument().features[0].geometry.coordinates)).toEqual([
+    [100.51, 13.76],
+    [100.514, 13.762],
+    [100.518, 13.765]
+  ]);
+
+  const persisted = await page.evaluate(() => window.__mapToolsTest.captureProjectDocument());
+  expect(JSON.stringify(persisted)).not.toMatch(/_leaflet_id|FeatureGroup|LatLng/);
+});

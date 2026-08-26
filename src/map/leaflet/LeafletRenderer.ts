@@ -77,6 +77,7 @@ export class LeafletRenderer implements MapRenderer {
   private transientSearchMarker: RuntimeMarker | null = null;
   private suppressViewEvent = false;
   private ignoreNextMoveEnd = false;
+  private transientSearchNavigationActive = false;
   private selectedFeatureId: string | null = null;
   private readonly activeFeatureInteractions = new Set<FeatureId>();
 
@@ -109,6 +110,10 @@ export class LeafletRenderer implements MapRenderer {
         this.ignoreNextMoveEnd = false;
         return;
       }
+      if (this.transientSearchNavigationActive) {
+        this.transientSearchNavigationActive = false;
+        return;
+      }
       if (!this.suppressViewEvent) this.callbacks.onMapViewChanged?.(this.getView());
     });
   }
@@ -118,8 +123,9 @@ export class LeafletRenderer implements MapRenderer {
   }
 
   setView(view: MapView): void {
+    this.transientSearchNavigationActive = false;
     const current = this.map.getCenter();
-    const changed = current.lat !== view.center[1] || current.lng !== view.center[0] || this.map.getZoom() !== view.zoom;
+    const changed = Math.abs(current.lat - view.center[1]) > 1e-9 || Math.abs(current.lng - view.center[0]) > 1e-9 || this.map.getZoom() !== view.zoom;
     this.ignoreNextMoveEnd = changed;
     this.suppressViewEvent = true;
     this.map.setView(toLeafletLatLng(view.center), view.zoom);
@@ -231,7 +237,12 @@ export class LeafletRenderer implements MapRenderer {
 
   showSearchResult(preview: GeocodingPreview, onAdd: () => void): void {
     this.clearSearchResult();
-    this.map.flyTo(toLeafletLatLng(preview.coordinate), 16);
+    const target = toLeafletLatLng(preview.coordinate);
+    const current = this.map.getCenter();
+    const needsNavigation = current.lat !== target[0] || current.lng !== target[1] || this.map.getZoom() !== 16;
+    this.ignoreNextMoveEnd = false;
+    this.transientSearchNavigationActive = needsNavigation;
+    if (needsNavigation) this.map.flyTo(target, 16);
     const marker = L.marker(toLeafletLatLng(preview.coordinate), { icon: this.createMarkerIcon('#475569') }) as RuntimeMarker;
     marker.addTo(this.transientSearchLayer);
     marker.projectFeatureId = `transient-${Date.now()}`;
@@ -244,7 +255,7 @@ export class LeafletRenderer implements MapRenderer {
     button.className = 'mt-2 rounded bg-blue-600 px-2 py-1 text-white';
     button.addEventListener('click', () => onAdd());
     content.append(label, button);
-    marker.bindPopup(content, { autoClose: false, closeButton: false }).openPopup();
+    marker.bindPopup(content, { autoClose: false, closeButton: false, autoPan: false }).openPopup();
     this.transientSearchMarker = marker;
   }
 

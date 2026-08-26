@@ -59,6 +59,48 @@ test('group toggles preserve child flags and delete-by-ungrouping keeps features
   expect(afterDelete.feature.groupId).toBeNull();
 });
 
+test('group deletion is one undoable ungroup mutation', async ({ page }) => {
+  await boot(page);
+  await loadDenseFixture(page);
+
+  const childIds = await page.evaluate(() => window.__mapToolsTest.captureProjectDocument().features
+    .filter(feature => feature.groupId === 'group-survey')
+    .map(feature => feature.id));
+  expect(childIds.length).toBeGreaterThan(0);
+  expect(await page.evaluate(() => window.__mapToolsTest.getHistoryState().length)).toBe(0);
+
+  await page.locator('[data-group-id="group-survey"] [data-action="delete-group"]').click();
+  await expect.poll(() => page.evaluate(() => window.__mapToolsTest.getHistoryState().length)).toBe(1);
+  const removed = await page.evaluate(ids => {
+    const project = window.__mapToolsTest.captureProjectDocument();
+    return {
+      groupPresent: project.groups.some(group => group.id === 'group-survey'),
+      assignments: ids.map(id => project.features.find(feature => feature.id === id).groupId)
+    };
+  }, childIds);
+  expect(removed).toEqual({ groupPresent: false, assignments: childIds.map(() => null) });
+
+  await page.evaluate(() => window.__mapToolsTest.undo());
+  const restored = await page.evaluate(ids => {
+    const project = window.__mapToolsTest.captureProjectDocument();
+    return {
+      groupPresent: project.groups.some(group => group.id === 'group-survey'),
+      assignments: ids.map(id => project.features.find(feature => feature.id === id).groupId)
+    };
+  }, childIds);
+  expect(restored).toEqual({ groupPresent: true, assignments: childIds.map(() => 'group-survey') });
+
+  await page.evaluate(() => window.__mapToolsTest.redo());
+  const redone = await page.evaluate(ids => {
+    const project = window.__mapToolsTest.captureProjectDocument();
+    return {
+      groupPresent: project.groups.some(group => group.id === 'group-survey'),
+      assignments: ids.map(id => project.features.find(feature => feature.id === id).groupId)
+    };
+  }, childIds);
+  expect(redone).toEqual({ groupPresent: false, assignments: childIds.map(() => null) });
+});
+
 test('renderer reinitialization preserves stable-ID workspace selection', async ({ page }) => {
   await boot(page);
   await loadDenseFixture(page);
