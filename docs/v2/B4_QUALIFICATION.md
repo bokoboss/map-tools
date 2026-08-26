@@ -1,6 +1,6 @@
 # B4 2D Product Acceptance Qualification
 
-Status: locally qualified; final PR control-plane check is pending or must be recorded after the qualification evidence commit.
+Status: locally qualified; GitHub Actions control-plane status is not reported for the final PR evidence head.
 
 Date: 2026-08-26
 
@@ -16,8 +16,9 @@ Issue: [#13 - B4 2D product acceptance and interaction parity](https://github.co
 - B4.1 implementation checkpoint: `836f896e3082a058c0ee78701273f29967e8b6f2`
 - B4.1 checkpoint evidence commit: `2936e26364bfbd43878da5a3f3d4e82205f0e39f`
 - B4.2 implementation/remediation head: `c47c7249fb8c6e65aa196a7c05de6a4e46896126`
+- Qualification evidence commit before this final decision update: `c5bd71eb47ea14918fd000fdf115acfe838d0c49`
 - PR: [#16 - B4: qualify 2D product acceptance and interaction parity](https://github.com/bokoboss/map-tools/pull/16), open, against `main`, intentionally unmerged, and closing #13.
-- Final PR tip is the tip of PR #16 after this qualification evidence and any final CI-status update are pushed; no future SHA is pre-claimed in this document.
+- The final PR tip is the latest pushed commit on PR #16; its exact SHA is reported in the final handoff after this document update. No future SHA is pre-claimed in this document.
 
 The B4.1 implementation and checkpoint were committed before B4.2 work began. B4.2 implementation is separated from this qualification artifact so code provenance and qualification evidence remain independently auditable.
 
@@ -114,7 +115,7 @@ The production browser suite also passed its no-test-globals check.
 
 The active workflow is `.github/workflows/ci.yml` and runs `npm ci`, lint, typecheck, unit tests, build, Chromium installation, and the browser suite. PR #16 is open, unmerged, and targets base SHA `dc5ed047a45ceaf7c651af8b2c7da3bdb4952a65`.
 
-At the initial B4.2 implementation head `c47c7249fb8c6e65aa196a7c05de6a4e46896126`, GitHub reported no check runs and no status contexts after polling. The workflow file is active and present on `main`; this absence is recorded as an infrastructure/control-plane observation, not represented as a green CI result. The final check-run status for the qualification evidence tip must be recorded here after the evidence commit is pushed.
+For both the initial B4.2 implementation head `c47c7249fb8c6e65aa196a7c05de6a4e46896126` and the qualification evidence head `c5bd71eb47ea14918fd000fdf115acfe838d0c49`, GitHub reported zero workflow runs, zero check runs, and zero status contexts after polling. The workflow file is active and present on `main`, but no PR run was created or exposed for these heads. CI result: `NOT REPORTED` (not PASS and not FAIL). This is recorded as an infrastructure/control-plane limitation; it is not represented as a green CI result, and the complete local CI-equivalent gates are listed above.
 
 ## Known limitations and intentional v1 changes
 
@@ -129,9 +130,7 @@ At the initial B4.2 implementation head `c47c7249fb8c6e65aa196a7c05de6a4e4689612
 
 ## Final decisions
 
-Local product acceptance gates and all J1-J8 journeys pass. The final B4 decision is recorded after the PR evidence tip's CI check is observed:
+Local product acceptance gates and all J1-J8 journeys pass.
 
-- `B4_2D_PRODUCT_ACCEPTANCE_QUALIFIED` if the final PR workflow is green;
-- `B4_2D_PRODUCT_ACCEPTANCE_NOT_QUALIFIED` only if the final PR workflow reports a failure, with that exact failure recorded above.
-
-`BLOCK_C4_1` - C4.1 must not start because PR #16 is intentionally unmerged and B4 has not yet received control-plane acceptance. This remains true even though the local 2D product-acceptance evidence is green.
+- `B4_2D_PRODUCT_ACCEPTANCE_QUALIFIED` - the required local product-acceptance, parity, lock, persistence, static, and real-browser evidence is green. GitHub Actions did not report a run for the final PR evidence head, so control-plane review must still confirm CI infrastructure/status before merge.
+- `BLOCK_C4_1` - C4.1 must not start because PR #16 is intentionally unmerged, B4 has not yet received control-plane acceptance, and the final GitHub Actions status is not reported. This remains true even though the local 2D product-acceptance evidence is green.
