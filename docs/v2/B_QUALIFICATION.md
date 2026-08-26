@@ -1,7 +1,7 @@
-# Macro Phase B Qualification — Productive Workspace
+# Macro Phase B Qualification - Productive Workspace
 
-Status: qualified; local and PR CI gates passed
-Date: 2026-08-25
+Status: qualified; local gates passed; PR CI pending for the remediation tip
+Date: 2026-08-26
 
 ## Identity
 
@@ -10,10 +10,12 @@ Date: 2026-08-25
 - Base SHA: `5a3d13d22a34e4f257e19b7c81494fb7423c2844`
 - B1 checkpoint SHA: `dd66452fd34a1d2a10a51e29b993cb178cfd7c2a`
 - B2 checkpoint SHA: `553ef3847ac64fb3024a01de59ca54fdb243a973`
-- Final implementation head SHA: `be50228`
-- Final qualified PR head SHA: `05340f318b3229ac31af53fac637677e994dbe3a`
+- Previous implementation head SHA: `be50228`
+- Remediation implementation head SHA: `de91ae7e220bc4a04e2326bd63b13462a438252b`
+- Qualification/evidence commit SHA: this document commit, established when the document is committed
+- Current final PR tip SHA: established and reported after the qualification/evidence commit is pushed; it is not pre-claimed here
 
-`origin/main` and the requested execution branch both resolved to the base SHA before implementation. B1 and B2 were committed separately with clean-tree checkpoints before the next phase began.
+`origin/main` and the requested execution branch both resolved to the base SHA before implementation. B1 and B2 were committed separately with clean-tree checkpoints before the next phase began. The remediation implementation commit is separated from this qualification/evidence commit so the provenance distinguishes code from evidence.
 
 ## Scope result
 
@@ -33,17 +35,17 @@ All checks below were run from `C:\MyRD\map-tools` after a clean lockfile instal
 
 | Gate | Command | Result |
 |---|---|---|
-| Clean install | `npm ci` | PASS — 212 packages added, 213 audited, 0 vulnerabilities |
+| Clean install | `npm ci` | PASS - 212 packages added, 213 audited, 0 vulnerabilities |
 | Lint | `npm run lint` | PASS |
 | Strict typecheck | `npm run typecheck` | PASS |
-| Unit/integration/architecture tests | `npm test` | PASS — 29/29 |
-| Production build | `npm run build` | PASS — Vite 6.4.3; one existing >500 kB chunk warning |
-| Development browser suite | `npm run test:browser` | PASS — 25/25 |
-| Preview browser suite | `PLAYWRIGHT_USE_PREVIEW=1 npm run test:browser` | PASS — 25/25 |
+| Unit/integration/architecture tests | `npm test` | PASS - 29/29 |
+| Production build | `npm run build` | PASS - Vite 6.4.3; one existing >500 kB chunk warning |
+| Development browser suite | `npm run test:browser` | PASS - 28/28 |
+| Preview browser suite | `PLAYWRIGHT_USE_PREVIEW=1 npm run test:browser` | PASS - 28/28 |
 | Diff hygiene | `git diff --check` | PASS |
-| Static artifact smoke | `python -m http.server 4174 --directory dist` plus Chromium load | PASS — map visible, page errors `[]`, `__mapToolsTest` and `MapToolsSchema` undefined on `/index.html` |
+| Static artifact smoke | `python -m http.server 4174 --directory dist` plus Chromium load | PASS - map visible, page errors `[]`, `__mapToolsTest` and `MapToolsSchema` undefined on `/index.html` |
 
-The browser suite contains the preserved 20 A1/A2/A3 behavior checks plus 5 new B3 checks: dense workspace UAT, search results, responsive desktop/mobile coverage, normal production globals, and the two added workspace scenarios. The 29 unit/integration checks include the B1 workspace invariants and B2 store/history invariants.
+The browser suite covers the preserved A1/A2/A3 behavior checks plus Macro B workspace checks, including dense workspace UAT, transient multi-result search, responsive desktop/mobile coverage, normal production globals, continuous shape geometry history, and group delete-by-ungrouping undo/redo. The 29 unit/integration checks include the B1 workspace invariants and B2 store/history invariants.
 
 ## Dense-project UAT
 
@@ -51,11 +53,11 @@ The browser suite contains the preserved 20 A1/A2/A3 behavior checks plus 5 new 
 
 ## Responsive and accessibility result
 
-The browser matrix passes at approximately 1440×900, 1366×768, 900×900, and 390×844. The map remains visible, the desktop layout stays map-first with a 320–380 px right workspace target, the narrow workspace collapses/reopens without losing primary map controls, and no document horizontal overflow is introduced. Workspace rows expose `aria-selected`, selection is visually and structurally distinguishable without relying only on color, focus remains visible, and icon-only buttons have accessible names or titles. This is a focused product accessibility smoke, not a full WCAG audit.
+The browser matrix passes at approximately 1440x900, 1366x768, 900x900, and 390x844. The map remains visible, the desktop layout stays map-first with a 320-380 px right workspace target, the narrow workspace collapses/reopens without losing primary map controls, and no document horizontal overflow is introduced. Workspace rows expose `aria-selected`, selection is visually and structurally distinguishable without relying only on color, focus remains visible, and icon-only buttons have accessible names or titles. This is a focused product accessibility smoke, not a full WCAG audit.
 
 ## History and dirty-state evidence
 
-Selection, group expansion, inspector navigation, and search preview remain clean and create no history entries. Feature edits create undoable entries; saved-baseline restoration reports Saved; divergent edits clear redo; project replacement resets history; Delete is protected in editable fields; and continuous marker drag creates one logical history entry. Search Add creates exactly one normal marker mutation and supports undo/redo.
+Selection, group expansion, inspector navigation, and search preview remain clean and create no history entries. Search preview navigation completes without dirtying map view state, while normal map navigation still persists and dirties the workspace. Feature edits create undoable entries; saved-baseline restoration reports Saved; divergent edits clear redo; project replacement resets history; Delete is protected in editable fields; continuous marker drag and continuous supported-shape editing each create one logical history entry; and group deletion-by-ungrouping restores the group and all child assignments through undo/redo. Search Add creates exactly one normal marker mutation and supports undo/redo.
 
 ## Architecture regression evidence
 
@@ -65,8 +67,8 @@ The domain, persistence, store, workspace state, history, and renderer-neutral i
 
 The workflow is `.github/workflows/ci.yml` and runs `npm ci`, lint, typecheck, unit tests, build, Chromium installation, and the browser suite.
 
-- PR: [#12 — Macro Phase B productive workspace](https://github.com/bokoboss/map-tools/pull/12), open and unmerged; it fixes #5.
-- CI run: [32871007365](https://github.com/bokoboss/map-tools/actions/runs/32871007365) — `success` for PR head `05340f318b3229ac31af53fac637677e994dbe3a`.
+- PR: [#12 - Macro Phase B productive workspace](https://github.com/bokoboss/map-tools/pull/12), open and unmerged; it fixes #5.
+- Remediation CI run: pending for the pushed remediation/current PR tip; the final run ID, status, and head SHA are recorded in the final PR report.
 
 ## Known limitations
 
@@ -78,5 +80,5 @@ The workflow is `.github/workflows/ci.yml` and runs `npm ci`, lint, typecheck, u
 
 ## Readiness decisions
 
-- `MACRO_PHASE_B_QUALIFIED` — all local gates, browser suites, dense UAT, responsive checks, static artifact smoke, and PR CI pass.
-- `NOT_READY_FOR_C4_3D_PREVIEW` — C4 visible 3D/2.5D is explicitly out of scope for Macro Phase B and has not been implemented or qualified. The A3 future-renderer architecture remains ready for a later phase.
+- `MACRO_PHASE_B_QUALIFIED` - all local gates, browser suites, dense UAT, responsive checks, and static artifact smoke pass; the remediation PR CI run is pending after push.
+- `READY_FOR_C4_3D_PREVIEW` - Macro B has no architectural blocker to begin C4.1: canonical ProjectStore state, renderer-neutral workspace state, stable FeatureId boundaries, runtime-object isolation, and renderer reinitialization remain qualified. MapLibre/3D/2.5D is not implemented in this PR and remains future C4 work.
