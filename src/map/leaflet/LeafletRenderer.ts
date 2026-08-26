@@ -1,8 +1,8 @@
 import L from 'leaflet';
-import type { Coordinate, FeatureStyle, MapView, ProjectDocumentV2, ProjectFeature } from '../../domain/model';
+import type { Coordinate, FeatureId, FeatureStyle, MapView, ProjectDocumentV2, ProjectFeature } from '../../domain/model';
 import { clone, effectiveState } from '../../domain/project';
 import { formatArea, formatDistance, polygonAreaSquareMeters, polylineLength } from '../../measurement';
-import type { BasemapOption, FeatureAction, GeocodingPreview, MapRenderer } from '../renderer/MapRenderer';
+import type { BasemapOption, FeatureAction, FeatureChangePhase, GeocodingPreview, MapRenderer } from '../renderer/MapRenderer';
 import { fromLeafletLatLng, toLeafletLatLng, toLeafletLatLngs } from './coordinates';
 
 type RuntimeLayer = L.Layer & {
@@ -27,8 +27,10 @@ type RuntimePath = L.Path & {
 };
 
 export interface LeafletRendererCallbacks {
-  onFeatureChanged(feature: ProjectFeature): void;
+  onFeatureChanged(feature: ProjectFeature, phase?: FeatureChangePhase): void;
   onFeatureAction(action: FeatureAction, featureId: string): void;
+  onFeatureSelected?(featureId: FeatureId | null): void;
+  onFeatureInteractionStart?(featureId: FeatureId, label: string): void;
   onMapViewChanged?(view: MapView): void;
 }
 
@@ -67,6 +69,7 @@ export class LeafletRenderer implements MapRenderer {
   private readonly markerLayers = new Map<string, RuntimeMarker>();
   private readonly drawnLayers = new Map<string, RuntimeLayer>();
   private readonly mapClickListeners = new Set<(coordinate: Coordinate) => void>();
+  private readonly featureSelectListeners = new Set<(featureId: FeatureId | null) => void>();
   private readonly callbacks: LeafletRendererCallbacks;
   private currentBasemapId = 'osm-standard';
   private currentBaseLayer: L.Layer;
@@ -74,7 +77,9 @@ export class LeafletRenderer implements MapRenderer {
   private transientSearchMarker: RuntimeMarker | null = null;
   private suppressViewEvent = false;
   private ignoreNextMoveEnd = false;
+  private transientSearchNavigationActive = false;
   private selectedFeatureId: string | null = null;
+  private readonly activeFeatureInteractions = new Set<FeatureId>();
 
   constructor(element: HTMLElement, callbacks: LeafletRendererCallbacks) {
     this.callbacks = callbacks;
@@ -105,6 +110,10 @@ export class LeafletRenderer implements MapRenderer {
         this.ignoreNextMoveEnd = false;
         return;
       }
+      if (this.transientSearchNavigationActive) {
+        this.transientSearchNavigationActive = false;
+        return;
+      }
       if (!this.suppressViewEvent) this.callbacks.onMapViewChanged?.(this.getView());
     });
   }
@@ -114,8 +123,9 @@ export class LeafletRenderer implements MapRenderer {
   }
 
   setView(view: MapView): void {
+    this.transientSearchNavigationActive = false;
     const current = this.map.getCenter();
-    const changed = current.lat !== view.center[1] || current.lng !== view.center[0] || this.map.getZoom() !== view.zoom;
+    const changed = Math.abs(current.lat - view.center[1]) > 1e-9 || Math.abs(current.lng - view.center[0]) > 1e-9 || this.map.getZoom() !== view.zoom;
     this.ignoreNextMoveEnd = changed;
     this.suppressViewEvent = true;
     this.map.setView(toLeafletLatLng(view.center), view.zoom);
@@ -134,6 +144,8 @@ export class LeafletRenderer implements MapRenderer {
     this.clearProjectLayers();
     const groups = new Map(project.groups.map((group) => [group.id, group]));
     project.features.forEach((feature) => this.renderFeature(feature, groups.get(feature.groupId ?? '')));
+    if (this.selectedFeatureId && !project.features.some((feature) => feature.id === this.selectedFeatureId)) this.selectedFeatureId = null;
+    this.applySelectionHighlight();
   }
 
   upsertFeature(feature: ProjectFeature): void {
@@ -186,7 +198,8 @@ export class LeafletRenderer implements MapRenderer {
   }
 
   selectFeature(featureId: string | null): void {
-    this.selectedFeatureId = featureId;
+    this.selectedFeatureId = featureId && this.currentProject?.features.some((feature) => feature.id === featureId) ? featureId : null;
+    this.applySelectionHighlight();
   }
 
   fitFeature(featureId: string): void {
@@ -217,9 +230,19 @@ export class LeafletRenderer implements MapRenderer {
     return () => this.mapClickListeners.delete(listener);
   }
 
+  onFeatureSelect(listener: (featureId: FeatureId | null) => void): () => void {
+    this.featureSelectListeners.add(listener);
+    return () => this.featureSelectListeners.delete(listener);
+  }
+
   showSearchResult(preview: GeocodingPreview, onAdd: () => void): void {
     this.clearSearchResult();
-    this.map.flyTo(toLeafletLatLng(preview.coordinate), 16);
+    const target = toLeafletLatLng(preview.coordinate);
+    const current = this.map.getCenter();
+    const needsNavigation = current.lat !== target[0] || current.lng !== target[1] || this.map.getZoom() !== 16;
+    this.ignoreNextMoveEnd = false;
+    this.transientSearchNavigationActive = needsNavigation;
+    if (needsNavigation) this.map.flyTo(target, 16);
     const marker = L.marker(toLeafletLatLng(preview.coordinate), { icon: this.createMarkerIcon('#475569') }) as RuntimeMarker;
     marker.addTo(this.transientSearchLayer);
     marker.projectFeatureId = `transient-${Date.now()}`;
@@ -232,7 +255,7 @@ export class LeafletRenderer implements MapRenderer {
     button.className = 'mt-2 rounded bg-blue-600 px-2 py-1 text-white';
     button.addEventListener('click', () => onAdd());
     content.append(label, button);
-    marker.bindPopup(content, { autoClose: false, closeButton: false }).openPopup();
+    marker.bindPopup(content, { autoClose: false, closeButton: false, autoPan: false }).openPopup();
     this.transientSearchMarker = marker;
   }
 
@@ -328,6 +351,29 @@ export class LeafletRenderer implements MapRenderer {
     if (state.visible) layer.addTo(this.map);
   }
 
+  private publishSelection(featureId: FeatureId | null): void {
+    this.selectFeature(featureId);
+    this.callbacks.onFeatureSelected?.(featureId);
+    this.featureSelectListeners.forEach((listener) => listener(featureId));
+  }
+
+  private applySelectionHighlight(): void {
+    const selectedId = this.selectedFeatureId;
+    for (const [featureId, layer] of this.featureLayers) {
+      const selected = featureId === selectedId;
+      if (layer instanceof L.Marker) {
+        layer.getElement()?.classList.toggle('workspace-selected-feature', selected);
+        continue;
+      }
+      const feature = this.currentProject?.features.find((candidate) => candidate.id === featureId);
+      if (!feature) continue;
+      const target = this.editTarget(layer);
+      if (!target || !(target instanceof L.Path)) continue;
+      const base = styleForLeaflet(feature.style, feature.type === 'arrow' ? { color: '#10b981', weightPx: 3 } : {});
+      target.setStyle(selected ? { ...base, color: '#f97316', weight: (base.weight ?? 4) + 2 } : base);
+    }
+  }
+
   private createMarkerLayer(feature: Extract<ProjectFeature, { type: 'marker' }>, locked: boolean): RuntimeMarker {
     const marker = L.marker(toLeafletLatLng(feature.geometry.coordinates), { draggable: !locked, icon: this.createMarkerIcon(feature.style.color ?? '#2563eb') }) as RuntimeMarker;
     marker.projectFeatureId = feature.id;
@@ -337,12 +383,17 @@ export class LeafletRenderer implements MapRenderer {
     marker.radii = feature.properties.radii.map((radius) => ({ id: radius.id, distance: radius.distanceM, color: radius.color, fillOpacity: radius.fillOpacity }));
     marker.circleLayerGroup = L.layerGroup();
     marker.bindPopup(this.createMarkerPopupContent(feature), { autoClose: false, closeButton: false });
-    marker.on('dragstart', () => marker.closePopup());
-    marker.on('drag', () => {
-      this.drawCirclesForMarker(marker);
-      this.publishFeature(feature.id, marker);
+    marker.on('click', () => this.publishSelection(feature.id));
+    marker.on('dragstart', () => {
+      marker.closePopup();
+      this.activeFeatureInteractions.add(feature.id);
+      this.callbacks.onFeatureInteractionStart?.(feature.id, `Move ${feature.name}`);
     });
-    marker.on('dragend', () => this.publishFeature(feature.id, marker));
+    marker.on('drag', () => this.drawCirclesForMarker(marker));
+    marker.on('dragend', () => {
+      this.publishFeature(feature.id, marker, 'commit');
+      this.activeFeatureInteractions.delete(feature.id);
+    });
     this.drawCirclesForMarker(marker);
     return marker;
   }
@@ -355,8 +406,15 @@ export class LeafletRenderer implements MapRenderer {
     marker.rotation = feature.style.rotationDeg ?? 0;
     marker.isTextLabel = true;
     marker.bindPopup(this.createMarkerPopupContent(feature), { autoClose: false, closeButton: false });
-    marker.on('drag', () => this.publishFeature(feature.id, marker));
-    marker.on('dragend', () => this.publishFeature(feature.id, marker));
+    marker.on('click', () => this.publishSelection(feature.id));
+    marker.on('dragstart', () => {
+      this.activeFeatureInteractions.add(feature.id);
+      this.callbacks.onFeatureInteractionStart?.(feature.id, `Move ${feature.name}`);
+    });
+    marker.on('dragend', () => {
+      this.publishFeature(feature.id, marker, 'commit');
+      this.activeFeatureInteractions.delete(feature.id);
+    });
     return marker;
   }
 
@@ -382,12 +440,22 @@ export class LeafletRenderer implements MapRenderer {
       (target as L.Path).bindPopup(() => this.createShapePopupContent(featureId), { autoClose: true, closeOnClick: true });
       target.on('click', (event: L.LeafletMouseEvent) => {
         L.DomEvent.stop(event);
+        this.publishSelection(featureId);
         if (target.isPopupOpen()) target.closePopup();
         else target.openPopup(event.latlng);
       });
+      target.on('editstart', () => {
+        this.activeFeatureInteractions.add(featureId);
+        const feature = this.currentProject?.features.find((candidate) => candidate.id === featureId);
+        this.callbacks.onFeatureInteractionStart?.(featureId, `Edit ${feature?.name ?? 'feature'} geometry`);
+      });
       target.on('edit', () => {
         if (layer.isArrow) this.updateArrowHead(layer);
-        this.publishFeature(featureId, layer);
+        if (!this.activeFeatureInteractions.has(featureId)) this.publishFeature(featureId, layer, 'commit');
+      });
+      target.on('editend', () => {
+        this.publishFeature(featureId, layer, 'commit');
+        this.activeFeatureInteractions.delete(featureId);
       });
       if (locked && target.editing) target.editing.disable();
     }
@@ -494,9 +562,9 @@ export class LeafletRenderer implements MapRenderer {
     return container;
   }
 
-  private publishFeature(featureId: string, runtimeOverride?: RuntimeLayer): void {
+  private publishFeature(featureId: string, runtimeOverride?: RuntimeLayer, phase: FeatureChangePhase = 'commit'): void {
     const feature = this.featureFromRuntime(featureId, runtimeOverride);
-    if (feature) this.callbacks.onFeatureChanged(feature);
+    if (feature) this.callbacks.onFeatureChanged(feature, phase);
   }
 
   private featureFromRuntime(featureId: string, runtimeOverride?: RuntimeLayer): ProjectFeature | null {

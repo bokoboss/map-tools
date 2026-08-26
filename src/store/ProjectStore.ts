@@ -1,17 +1,32 @@
 import { clone } from '../domain/project';
 import type { MapView, ProjectDocumentV2, ProjectFeature } from '../domain/model';
 import { normalizeProject } from '../persistence/projectSchema';
+import { ProjectHistory, projectFingerprint } from './ProjectHistory';
+import type { ProjectHistoryState } from './ProjectHistory';
 
-export type ProjectStoreChange = 'mutation' | 'replace';
+export type ProjectStoreChange = 'mutation' | 'replace' | 'history' | 'baseline';
 export type ProjectStoreListener = (snapshot: ProjectDocumentV2, change: ProjectStoreChange) => void;
+
+export interface ProjectStoreMutationOptions {
+  recordHistory?: boolean;
+}
+
+interface ActiveTransaction {
+  before: ProjectDocumentV2;
+  label: string;
+}
 
 export class ProjectStore {
   private project: ProjectDocumentV2;
-  private dirty = false;
+  private savedBaseline: string;
+  private readonly history: ProjectHistory;
+  private activeTransaction: ActiveTransaction | null = null;
   private readonly listeners = new Set<ProjectStoreListener>();
 
-  constructor(initial: ProjectDocumentV2) {
+  constructor(initial: ProjectDocumentV2, maximumHistoryEntries = 100) {
     this.project = normalizeProject(initial);
+    this.savedBaseline = projectFingerprint(this.project);
+    this.history = new ProjectHistory(maximumHistoryEntries);
   }
 
   getSnapshot(): ProjectDocumentV2 {
@@ -19,7 +34,11 @@ export class ProjectStore {
   }
 
   isDirty(): boolean {
-    return this.dirty;
+    return projectFingerprint(this.project) !== this.savedBaseline;
+  }
+
+  getHistoryState(): ProjectHistoryState {
+    return this.history.getState();
   }
 
   subscribe(listener: ProjectStoreListener): () => void {
@@ -28,46 +47,91 @@ export class ProjectStore {
   }
 
   replaceProject(candidate: ProjectDocumentV2): void {
+    this.activeTransaction = null;
     this.project = normalizeProject(candidate);
-    this.dirty = false;
+    this.savedBaseline = projectFingerprint(this.project);
+    this.history.clear();
     this.emit('replace');
   }
 
-  mutate(mutator: (draft: ProjectDocumentV2) => void): void {
-    const draft = this.getSnapshot();
+  mutate(mutator: (draft: ProjectDocumentV2) => void, label = 'Edit project', options: ProjectStoreMutationOptions = {}): void {
+    const before = this.getSnapshot();
+    const draft = clone(before);
     mutator(draft);
     draft.project.updatedAt = new Date().toISOString();
-    this.project = normalizeProject(draft);
-    this.dirty = true;
+    const next = normalizeProject(draft);
+    if (projectFingerprint(before) === projectFingerprint(next)) return;
+    this.project = next;
+    if (!this.activeTransaction && options.recordHistory !== false) this.history.commit(before, next, label);
     this.emit('mutation');
   }
 
-  addFeature(feature: ProjectFeature): void {
-    this.mutate((draft) => draft.features.push(clone(feature)));
+  beginTransaction(label = 'Edit project'): void {
+    if (this.activeTransaction) return;
+    this.activeTransaction = { before: this.getSnapshot(), label };
   }
 
-  updateFeature(feature: ProjectFeature): void {
+  endTransaction(): void {
+    const transaction = this.activeTransaction;
+    if (!transaction) return;
+    this.activeTransaction = null;
+    this.history.commit(transaction.before, this.project, transaction.label);
+  }
+
+  cancelTransaction(): void {
+    const transaction = this.activeTransaction;
+    if (!transaction) return;
+    this.activeTransaction = null;
+    this.project = normalizeProject(transaction.before);
+    this.emit('history');
+  }
+
+  undo(): boolean {
+    this.activeTransaction = null;
+    const previous = this.history.undo();
+    if (!previous) return false;
+    this.project = normalizeProject(previous);
+    this.emit('history');
+    return true;
+  }
+
+  redo(): boolean {
+    this.activeTransaction = null;
+    const next = this.history.redo();
+    if (!next) return false;
+    this.project = normalizeProject(next);
+    this.emit('history');
+    return true;
+  }
+
+  addFeature(feature: ProjectFeature, label = 'Create feature'): void {
+    this.mutate((draft) => draft.features.push(clone(feature)), label);
+  }
+
+  updateFeature(feature: ProjectFeature, label = 'Update feature'): void {
     this.mutate((draft) => {
       const index = draft.features.findIndex((item) => item.id === feature.id);
       if (index < 0) throw new Error(`Feature not found: ${feature.id}`);
       draft.features[index] = clone(feature);
-    });
+    }, label);
   }
 
-  removeFeature(featureId: string): void {
+  removeFeature(featureId: string, label = 'Delete feature'): void {
+    if (!this.project.features.some((feature) => feature.id === featureId)) return;
     this.mutate((draft) => {
       draft.features = draft.features.filter((feature) => feature.id !== featureId);
-    });
+    }, label);
   }
 
-  setMapView(mapView: MapView): void {
+  setMapView(mapView: MapView, label = 'Update map view', options: ProjectStoreMutationOptions = { recordHistory: false }): void {
     this.mutate((draft) => {
       draft.mapView = clone(mapView);
-    });
+    }, label, options);
   }
 
   markSaved(): void {
-    this.dirty = false;
+    this.savedBaseline = projectFingerprint(this.project);
+    this.emit('baseline');
   }
 
   private emit(change: ProjectStoreChange): void {

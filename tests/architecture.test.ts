@@ -57,6 +57,7 @@ test('renderer replacement preserves the canonical project snapshot', () => {
     onMapClick: () => () => undefined,
     showSearchResult: () => undefined,
     clearSearchResult: () => undefined,
+    onFeatureSelect: () => () => undefined,
     destroy: () => { if (isOld) oldDestroyed = true; }
   });
   const host = new RendererHost(makeRenderer(true));

@@ -17,11 +17,19 @@ import { ProjectStore } from './store/ProjectStore';
 const mapElement = document.getElementById('map');
 if (!mapElement) throw new Error('Missing #map element');
 
+const testSurfaceEnabled = new URLSearchParams(window.location.search).has('test');
+
 const store = new ProjectStore(createEmptyProject({ name: 'Untitled Map', appVersion: '2.0.0' }));
 let renderer: LeafletRenderer;
 
 const createRenderer = (): LeafletRenderer => new LeafletRenderer(mapElement, {
-  onFeatureChanged: (feature) => store.updateFeature(feature),
+  onFeatureChanged: (feature, phase) => {
+    store.updateFeature(feature, `${phase === 'update' ? 'Update' : 'Edit'} ${feature.name}`);
+    if (phase === 'commit') store.endTransaction();
+  },
+  onFeatureInteractionStart: (featureId, label) => {
+    if (store.getSnapshot().features.some((feature) => feature.id === featureId)) store.beginTransaction(label);
+  },
   onFeatureAction: (action, featureId) => app?.handleRendererAction(action, featureId),
   onMapViewChanged: (view) => {
     const current = store.getSnapshot().mapView;
@@ -34,7 +42,7 @@ const rendererHost = new RendererHost(renderer);
 const drawing = new LeafletDrawAdapter(renderer);
 const app = new AppController(store, rendererHost, drawing, new NominatimGeocoder());
 
-if (new URLSearchParams(window.location.search).has('test')) {
+if (testSurfaceEnabled) {
   const browserWindow = window as unknown as Window & {
     L: typeof L;
     MapToolsSchema: {
@@ -74,6 +82,14 @@ if (new URLSearchParams(window.location.search).has('test')) {
     getSearchResult: () => renderer.getSearchResult(),
     getDrawnLayers: () => renderer.getDrawnLayers(),
     runtimeSnapshot: () => renderer.runtimeSnapshot(),
+    getWorkspaceState: () => app.getWorkspaceState(),
+    getHistoryState: () => store.getHistoryState(),
+    isDirty: () => store.isDirty(),
+    undo: () => store.undo(),
+    redo: () => store.redo(),
+    selectFeature: (featureId: string | null) => app.selectFeature(featureId),
+    duplicateFeature: (featureId: string) => app.duplicateFeature(featureId),
+    deleteFeature: (featureId: string) => app.deleteFeature(featureId),
     fireMapClick: (lat: number, lon: number) => renderer.fireMapClickForTest(lat, lon),
     addTestShape: (type: string) => app.addTestShape(type as 'polyline' | 'polygon' | 'circle' | 'rectangle' | 'arrow'),
     openTextEditor: (layer: unknown) => {

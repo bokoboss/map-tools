@@ -11,6 +11,44 @@
     <!-- The main container for the map -->
     <div id="map"></div>
 
+    <!-- Productive workspace: transient UI around the canonical project store. -->
+    <button id="workspace-toggle-btn" class="workspace-toggle" type="button" aria-label="Show objects and inspector" title="Show objects and inspector">Objects</button>
+    <aside id="workspace-panel" class="workspace-panel" aria-label="Objects and inspector">
+        <div class="workspace-panel-header">
+            <div>
+                <p class="workspace-eyebrow">MAP TOOLS</p>
+                <h1>Objects &amp; Inspector</h1>
+            </div>
+            <div class="workspace-header-actions">
+                <span id="workspace-status" class="workspace-status">Saved</span>
+                <button id="workspace-close-btn" class="workspace-icon-button" type="button" aria-label="Collapse objects and inspector" title="Collapse objects and inspector">×</button>
+            </div>
+        </div>
+        <section id="object-manager" class="workspace-section" aria-labelledby="object-manager-heading">
+            <div class="workspace-section-title">
+                <div>
+                    <p class="workspace-eyebrow">WORKSPACE</p>
+                    <h2 id="object-manager-heading">Objects</h2>
+                </div>
+                <button id="add-group-btn" class="workspace-small-button" type="button" aria-label="Create group">+ Group</button>
+            </div>
+            <label class="workspace-filter">
+                <span class="sr-only">Filter objects</span>
+                <input id="object-filter" type="search" placeholder="Filter objects or groups" autocomplete="off">
+            </label>
+            <div id="object-list" class="workspace-object-list" role="listbox" aria-label="Project objects"></div>
+        </section>
+        <section id="inspector-section" class="workspace-section workspace-inspector-section" aria-labelledby="inspector-heading">
+            <div class="workspace-section-title">
+                <div>
+                    <p class="workspace-eyebrow">DETAILS</p>
+                    <h2 id="inspector-heading">Inspector</h2>
+                </div>
+            </div>
+            <div id="inspector" class="workspace-inspector"></div>
+        </section>
+    </aside>
+
     <!-- Container for all top-right controls -->
     <div id="controls-container" class="absolute top-4 right-4 z-[1000] flex flex-col items-end space-y-2">
         <!-- Search Control Wrapper -->
@@ -135,7 +173,7 @@
             <input type="text" id="pin-label-input" class="w-full p-2 text-sm border border-gray-300 rounded-lg mb-4" placeholder="ข้อความของหมุด">
             <div class="mb-4">
                 <p class="text-sm font-medium text-gray-600 mb-2">สีสำหรับหมุด:</p>
-                <button id="marker-color-selector" class="w-full h-10 rounded-lg border border-gray-300"></button>
+                <button id="marker-color-selector" class="w-full h-10 rounded-lg border border-gray-300" type="button" aria-label="Choose marker color" title="Choose marker color"></button>
             </div>
             <div id="radius-management-section" class="mb-6 border-t pt-4">
                  <button id="manage-radius-btn" class="w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-300 text-sm">จัดการรัศมี</button>
@@ -158,7 +196,7 @@
                 <h4 id="radius-form-title" class="font-semibold text-gray-700 mb-2">เพิ่มวงรัศมีใหม่</h4>
                 <div class="flex items-center space-x-2">
                     <input type="number" id="radius-input" class="w-full p-2 text-sm border border-gray-300 rounded-lg" placeholder="ระยะรัศมี (เมตร)" step="any">
-                    <button id="radius-color-selector" class="h-10 w-12 rounded-lg border border-gray-300 flex-shrink-0"></button>
+                    <button id="radius-color-selector" class="h-10 w-12 rounded-lg border border-gray-300 flex-shrink-0" type="button" aria-label="Choose radius color" title="Choose radius color"></button>
                     <button id="add-radius-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg text-sm">เพิ่ม</button>
                     <button id="cancel-edit-radius-btn" class="hidden bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg text-sm">ยกเลิก</button>
                 </div>
@@ -216,7 +254,7 @@
             <h3 class="text-xl font-bold text-gray-800 mb-4">แก้ไขสีรูปทรง</h3>
             <div class="mb-4">
                 <p class="text-sm font-medium text-gray-600 mb-2">สีใหม่:</p>
-                <button id="shape-color-selector" class="w-full h-10 rounded-lg border border-gray-300"></button>
+                <button id="shape-color-selector" class="w-full h-10 rounded-lg border border-gray-300" type="button" aria-label="Choose shape color" title="Choose shape color"></button>
             </div>
             <div class="flex justify-end">
                 <button id="close-shape-edit-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg text-sm">ปิด</button>
