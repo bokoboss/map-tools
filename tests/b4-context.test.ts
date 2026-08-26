@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { canMutateFeature, canMutateGroup, featureIsEffectivelyLocked } from '../src/domain/mutationPolicy';
 import { createEmptyProject } from '../src/domain/project';
 import type { Coordinate, MapView, ProjectFeature } from '../src/domain/model';
 import { NominatimGeocoder } from '../src/geocoding/NominatimGeocoder';
 import type { MapContextRequest, MapRenderer } from '../src/map/renderer/MapRenderer';
 import { RendererHost } from '../src/map/renderer/RendererHost';
+import { ProjectStore } from '../src/store/ProjectStore';
 
 function marker(id = 'marker-1'): Extract<ProjectFeature, { type: 'marker' }> {
   return {
@@ -19,6 +21,53 @@ function marker(id = 'marker-1'): Extract<ProjectFeature, { type: 'marker' }> {
     properties: { radii: [] }
   };
 }
+
+test('effective lock policy preserves group and feature lock sources', () => {
+  const project = createEmptyProject({ projectId: 'b4-lock-policy' });
+  project.groups.push({ id: 'locked-group', name: 'Locked', visible: true, locked: true, order: 1 });
+  const feature = marker();
+  feature.groupId = 'locked-group';
+  project.features.push(feature);
+
+  assert.equal(featureIsEffectivelyLocked(project, feature.id), true);
+  assert.equal(canMutateFeature(project, feature.id, 'visibility'), true);
+  assert.equal(canMutateFeature(project, feature.id, 'lock'), true);
+  for (const kind of ['move', 'geometry', 'name', 'content', 'style', 'radius', 'group', 'delete', 'duplicate', 'property'] as const) {
+    assert.equal(canMutateFeature(project, feature.id, kind), false, kind);
+  }
+  assert.equal(canMutateGroup(project, 'locked-group', 'lock'), true);
+  assert.equal(canMutateGroup(project, 'locked-group', 'rename'), false);
+
+  project.groups[0].locked = false;
+  feature.locked = true;
+  assert.equal(featureIsEffectivelyLocked(project, feature.id), true);
+  assert.equal(canMutateGroup(project, 'locked-group', 'rename'), true);
+  assert.equal(canMutateGroup(project, 'locked-group', 'delete'), true);
+  feature.locked = false;
+  assert.equal(featureIsEffectivelyLocked(project, feature.id), false);
+  assert.equal(canMutateGroup(project, 'locked-group', 'delete'), true);
+});
+
+test('ProjectStore rejects blocked feature mutations without history or dirty state', () => {
+  const project = createEmptyProject({ projectId: 'b4-store-lock' });
+  const feature = marker('locked-marker');
+  feature.locked = true;
+  project.features.push(feature);
+  const store = new ProjectStore(project);
+  const next = { ...feature, name: 'Should remain locked' };
+
+  assert.equal(store.updateFeature(next, 'Blocked rename', 'name'), false);
+  assert.equal(store.getSnapshot().features[0].name, 'Marker');
+  assert.equal(store.getHistoryState().length, 0);
+  assert.equal(store.isDirty(), false);
+  assert.equal(store.removeFeature(feature.id), false);
+  assert.equal(store.getSnapshot().features.length, 1);
+
+  assert.equal(store.updateFeature({ ...feature, visible: false }, 'Toggle visibility', 'visibility'), true);
+  assert.equal(store.getSnapshot().features[0].visible, false);
+  assert.equal(store.getHistoryState().length, 1);
+  assert.equal(store.isDirty(), true);
+});
 
 test('Nominatim reverse geocoding preserves canonical longitude/latitude order', async () => {
   const originalFetch = globalThis.fetch;

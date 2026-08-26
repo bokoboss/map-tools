@@ -26,6 +26,19 @@ async function rightClickMap(page, x = 260, y = 220) {
   await page.mouse.click(box.x + x, box.y + y, { button: 'right' });
 }
 
+async function rightClickFeature(page, featureId) {
+  const point = await page.evaluate(id => {
+    const layer = window.__mapToolsTest.getDrawnLayers().find(candidate => candidate.projectFeatureId === id);
+    if (!layer?._map) throw new Error(`No runtime shape layer for ${id}`);
+    const center = layer.getBounds().getCenter();
+    const map = layer._map;
+    const point = map.latLngToContainerPoint(center);
+    const rect = map.getContainer().getBoundingClientRect();
+    return { x: rect.left + point.x, y: rect.top + point.y };
+  }, featureId);
+  await page.mouse.click(point.x, point.y, { button: 'right' });
+}
+
 test('background context menu shows exact coordinates and safe reverse status', async ({ page }) => {
   await boot(page);
   expect(await page.evaluate(() => window.__mapToolsTest.isDirty())).toBe(false);
@@ -141,4 +154,19 @@ test('activating another annotation tool cancels marker placement', async ({ pag
   await expect(page.locator('#add-pin-btn')).toHaveAttribute('aria-pressed', 'false');
   await page.keyboard.press('Escape');
   expect(await page.evaluate(() => window.__mapToolsTest.captureProjectDocument().features.length)).toBe(0);
+});
+
+test('polyline, rectangle, and circle expose generic feature context actions', async ({ page }) => {
+  await boot(page);
+  for (const type of ['polyline', 'rectangle', 'circle']) {
+    await page.evaluate(shapeType => window.__mapToolsTest.addTestShape(shapeType), type);
+    const feature = await page.evaluate(() => window.__mapToolsTest.captureProjectDocument().features.at(-1));
+    await rightClickFeature(page, feature.id);
+    const menu = page.locator('#context-menu');
+    await expect(menu.getByRole('menuitem', { name: 'Edit geometry' })).toBeVisible();
+    await expect(menu.getByRole('menuitem', { name: 'Edit style/color' })).toBeVisible();
+    await expect(menu.getByRole('menuitem', { name: 'Delete object' })).toBeVisible();
+    await expect(menu.getByRole('menuitem', { name: 'Add marker here' })).toHaveCount(0);
+    await page.keyboard.press('Escape');
+  }
 });

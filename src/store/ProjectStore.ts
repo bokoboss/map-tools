@@ -1,4 +1,5 @@
 import { clone } from '../domain/project';
+import { canMutateFeature } from '../domain/mutationPolicy';
 import type { MapView, ProjectDocumentV2, ProjectFeature } from '../domain/model';
 import { normalizeProject } from '../persistence/projectSchema';
 import { ProjectHistory, projectFingerprint } from './ProjectHistory';
@@ -108,19 +109,22 @@ export class ProjectStore {
     this.mutate((draft) => draft.features.push(clone(feature)), label);
   }
 
-  updateFeature(feature: ProjectFeature, label = 'Update feature'): void {
+  updateFeature(feature: ProjectFeature, label = 'Update feature', mutationKind: Parameters<typeof canMutateFeature>[2] = 'property'): boolean {
+    if (!canMutateFeature(this.project, feature.id, mutationKind)) return false;
     this.mutate((draft) => {
       const index = draft.features.findIndex((item) => item.id === feature.id);
       if (index < 0) throw new Error(`Feature not found: ${feature.id}`);
       draft.features[index] = clone(feature);
     }, label);
+    return true;
   }
 
-  removeFeature(featureId: string, label = 'Delete feature'): void {
-    if (!this.project.features.some((feature) => feature.id === featureId)) return;
+  removeFeature(featureId: string, label = 'Delete feature'): boolean {
+    if (!canMutateFeature(this.project, featureId, 'delete')) return false;
     this.mutate((draft) => {
       draft.features = draft.features.filter((feature) => feature.id !== featureId);
     }, label);
+    return true;
   }
 
   setMapView(mapView: MapView, label = 'Update map view', options: ProjectStoreMutationOptions = { recordHistory: false }): void {

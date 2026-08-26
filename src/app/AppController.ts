@@ -1,4 +1,5 @@
 import { createId, clone } from '../domain/project';
+import { canMutateFeature } from '../domain/mutationPolicy';
 import type { Coordinate, ProjectFeature } from '../domain/model';
 import { deserializeProject, normalizeProject, serializeProject } from '../persistence/projectSchema';
 import { ProjectStore } from '../store/ProjectStore';
@@ -209,7 +210,7 @@ export class AppController {
 
   openMarkerEditor(featureId: string): void {
     const feature = this.findFeature(featureId);
-    if (!feature || !isMarkerFeature(feature)) return;
+    if (!feature || !isMarkerFeature(feature) || !this.canMutate(featureId, 'name')) return;
     this.markerToEditId = featureId;
     this.modalTitle.textContent = 'แก้ไขหมุด';
     this.pinLabelInput.value = feature.name;
@@ -223,7 +224,7 @@ export class AppController {
 
   openTextEditor(featureId: string | null): void {
     const feature = featureId ? this.findFeature(featureId) : null;
-    if (feature && !isTextFeature(feature)) return;
+    if (feature && (!isTextFeature(feature) || !this.canMutate(feature.id, 'content'))) return;
     this.textToEditId = featureId;
     this.textModalTitle.textContent = feature ? 'แก้ไขข้อความ' : 'เพิ่มข้อความ';
     this.textLabelInput.value = feature?.properties.text ?? '';
@@ -235,19 +236,20 @@ export class AppController {
 
   openShapeColorEditor(featureId: string): void {
     const feature = this.findFeature(featureId);
-    if (!feature || feature.type === 'marker' || feature.type === 'text') return;
+    if (!feature || feature.type === 'marker' || feature.type === 'text' || !this.canMutate(featureId, 'style')) return;
     this.shapeToEditId = featureId;
     this.setColorPreview(this.shapeColorSelector, feature.style.color ?? '#3388ff');
     this.shapeEditModal.classList.remove('hidden');
   }
 
   toggleShapeEdit(featureId: string): void {
+    if (!this.canMutate(featureId, 'geometry')) return;
     this.renderer.toggleFeatureEditable(featureId);
   }
 
   requestDelete(featureId: string): void {
     const feature = this.findFeature(featureId);
-    if (!feature) return;
+    if (!feature || !this.canMutate(featureId, 'delete')) return;
     const kind = feature.type === 'marker' ? 'marker' : feature.type === 'text' ? 'text' : 'shape';
     this.deleteTarget = { featureId, kind };
     this.deleteConfirmMessage.textContent = kind === 'marker' ? 'แน่ใจหรือไม่ว่าต้องการลบหมุดนี้?' : kind === 'text' ? 'แน่ใจหรือไม่ว่าต้องการลบข้อความนี้?' : 'แน่ใจหรือไม่ว่าต้องการลบรูปทรงนี้?';
@@ -456,11 +458,11 @@ export class AppController {
     if (!name) return;
     if (this.markerToEditId) {
       const feature = this.findFeature(this.markerToEditId);
-      if (feature && isMarkerFeature(feature)) {
+      if (feature && isMarkerFeature(feature) && this.canMutate(feature.id, 'name')) {
         const next = clone(feature);
         next.name = name;
         next.style = { ...next.style, color: this.selectedColor };
-        this.store.updateFeature(next);
+        this.store.updateFeature(next, 'Edit marker', 'name');
       }
     } else {
       const coordinate = this.tempCoordinate;
@@ -475,7 +477,7 @@ export class AppController {
   private openRadiusEditor(featureId: string | null): void {
     if (!featureId) return;
     const feature = this.findFeature(featureId);
-    if (!feature || !isMarkerFeature(feature)) return;
+    if (!feature || !isMarkerFeature(feature) || !this.canMutate(featureId, 'radius')) return;
     this.markerToEditId = featureId;
     this.pinModal.classList.add('hidden');
     this.resetRadiusForm();
@@ -530,7 +532,8 @@ export class AppController {
     if (!feature || !isMarkerFeature(feature)) return;
     const radius = feature.properties.radii.find((item) => item.id === button.dataset.id);
     if (button.dataset.action === 'delete') {
-      this.store.updateFeature({ ...clone(feature), properties: { radii: feature.properties.radii.filter((item) => item.id !== button.dataset.id) } });
+      if (!this.canMutate(feature.id, 'radius')) return;
+      this.store.updateFeature({ ...clone(feature), properties: { radii: feature.properties.radii.filter((item) => item.id !== button.dataset.id) } }, 'Delete marker radius', 'radius');
       this.renderRadiusList();
     } else if (button.dataset.action === 'edit' && radius) {
       this.radiusToEditId = radius.id;
@@ -554,7 +557,8 @@ export class AppController {
       const radius = next.properties.radii.find((item) => item.id === this.radiusToEditId);
       if (radius) { radius.distanceM = distanceM; radius.color = this.newRadiusColor; }
     } else next.properties.radii.push({ id: createId('radius'), distanceM, color: this.newRadiusColor, fillOpacity: 0.2 });
-    this.store.updateFeature(next);
+    if (!this.canMutate(feature.id, 'radius')) return;
+    this.store.updateFeature(next, 'Edit marker radius', 'radius');
     this.renderRadiusList();
     this.resetRadiusForm();
   }
@@ -586,19 +590,19 @@ export class AppController {
       this.setColorPreview(this.radiusColorSelector, color);
     } else if (target.type === 'edit-radius') {
       const feature = this.markerToEditId ? this.findFeature(this.markerToEditId) : null;
-      if (feature && isMarkerFeature(feature)) {
+      if (feature && isMarkerFeature(feature) && this.canMutate(feature.id, 'radius')) {
         const next = clone(feature);
         const radius = next.properties.radii.find((item) => item.id === target.radiusId);
         if (radius) radius.color = color;
-        this.store.updateFeature(next);
+        this.store.updateFeature(next, 'Edit marker radius color', 'radius');
         this.renderRadiusList();
       }
     } else if (target.type === 'shape') {
       const feature = this.findFeature(target.featureId);
-      if (feature && feature.type !== 'marker' && feature.type !== 'text') {
+      if (feature && feature.type !== 'marker' && feature.type !== 'text' && this.canMutate(feature.id, 'style')) {
         const next = clone(feature);
         next.style = { ...next.style, color, fillColor: color };
-        this.store.updateFeature(next);
+        this.store.updateFeature(next, 'Edit shape color', 'style');
         this.setColorPreview(this.shapeColorSelector, color);
       }
     }
@@ -630,11 +634,13 @@ export class AppController {
   }
 
   private confirmDelete(): void {
-    if (this.deleteTarget) this.store.removeFeature(this.deleteTarget.featureId);
+    if (this.deleteTarget && this.canMutate(this.deleteTarget.featureId, 'delete')) this.store.removeFeature(this.deleteTarget.featureId);
     this.hideAllModals();
   }
 
   private confirmDeleteAll(): void {
+    const project = this.store.getSnapshot();
+    if (project.features.some((feature) => !canMutateFeature(project, feature.id, 'delete'))) return;
     this.store.mutate((draft) => { draft.features = []; });
     this.renderer.selectFeature(null);
     this.deleteAllConfirmModal.classList.add('hidden');
@@ -843,11 +849,11 @@ export class AppController {
     if (!text) return;
     if (this.textToEditId) {
       const feature = this.findFeature(this.textToEditId);
-      if (feature && isTextFeature(feature)) {
+      if (feature && isTextFeature(feature) && this.canMutate(feature.id, 'content')) {
         const next = clone(feature);
         next.name = text;
         next.properties.text = text;
-        this.store.updateFeature(next);
+        this.store.updateFeature(next, 'Edit text', 'content');
       }
     } else {
       const coordinate = this.tempCoordinate;
@@ -860,7 +866,7 @@ export class AppController {
 
   private openRotationEditor(featureId: string): void {
     const feature = this.findFeature(featureId);
-    if (!feature || !isTextFeature(feature)) return;
+    if (!feature || !isTextFeature(feature) || !this.canMutate(featureId, 'style')) return;
     this.textToEditId = featureId;
     const rotation = feature.style.rotationDeg ?? 0;
     this.rotationSlider.value = String(rotation);
@@ -874,14 +880,19 @@ export class AppController {
     if (!feature || !isTextFeature(feature)) return;
     const rotation = Number(this.rotationSlider.value);
     this.rotationValue.textContent = `${rotation}°`;
+    if (!this.canMutate(feature.id, 'style')) return;
     const next = clone(feature);
     next.style = { ...next.style, rotationDeg: rotation };
-    this.store.updateFeature(next);
+    this.store.updateFeature(next, 'Edit text rotation', 'style');
   }
 
   private findFeature(featureId: string | null): ProjectFeature | null {
     if (!featureId) return null;
     return this.store.getSnapshot().features.find((feature) => feature.id === featureId) ?? null;
+  }
+
+  private canMutate(featureId: string, mutationKind: Parameters<typeof canMutateFeature>[2]): boolean {
+    return canMutateFeature(this.store.getSnapshot(), featureId, mutationKind);
   }
 
   private buttonForTool(tool: DrawTool): HTMLButtonElement {

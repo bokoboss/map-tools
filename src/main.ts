@@ -7,6 +7,7 @@ import '../style.css';
 
 import { AppController } from './app/AppController';
 import { createEmptyProject } from './domain/project';
+import { canMutateFeature } from './domain/mutationPolicy';
 import { LeafletDrawAdapter } from './drawing/LeafletDrawAdapter';
 import { NominatimGeocoder } from './geocoding/NominatimGeocoder';
 import { LeafletRenderer } from './map/leaflet/LeafletRenderer';
@@ -24,7 +25,13 @@ let renderer: LeafletRenderer;
 
 const createRenderer = (): LeafletRenderer => new LeafletRenderer(mapElement, {
   onFeatureChanged: (feature, phase) => {
-    store.updateFeature(feature, `${phase === 'update' ? 'Update' : 'Edit'} ${feature.name}`);
+    const project = store.getSnapshot();
+    const mutationKind = feature.type === 'marker' || feature.type === 'text' ? 'move' : 'geometry';
+    if (!canMutateFeature(project, feature.id, mutationKind)) {
+      renderer?.renderProject(project);
+      return;
+    }
+    store.updateFeature(feature, `${phase === 'update' ? 'Update' : 'Edit'} ${feature.name}`, mutationKind);
     if (phase === 'commit') store.endTransaction();
   },
   onFeatureInteractionStart: (featureId, label) => {
