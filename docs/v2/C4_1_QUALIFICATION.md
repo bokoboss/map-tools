@@ -13,8 +13,8 @@ Date: 2026-08-27
 | Required planning/base SHA | `74377f18921f2e9b2d5516d2eaed17e507e3ac47` |
 | C4.1A foundation checkpoint | `08176ab` — `feat(c4.1a): add MapLibre preview foundation` |
 | C4.1B implementation checkpoint | `6db204d` — `feat(c4.1b): render MapLibre project preview` |
-| Qualification evidence commit | To be filled by the commit adding this document |
-| Final head | To be filled after the final qualification-document update |
+| Qualification evidence commit | `6db204d` — all implementation gates below were run against this C4.1B checkpoint |
+| Final head | Latest branch commit containing this qualification record; exact SHA is reported in the PR handoff |
 | MapLibre dependency | `maplibre-gl@6.6.0` exactly |
 
 The implementation starts from the required planning head. C4.1A was implemented,
