@@ -9,16 +9,16 @@
 
 ## Current accepted baseline
 - Accepted branch: `main`
-- Accepted runtime baseline SHA: `501f996217857945e3008bae226ab7d19d5573e8`
-- Accepted date: 2026-08-26
-- Current phase/milestone: Macro Phase A and Macro Phase B complete; B4 2D Product Acceptance is the mandatory next gate before C4.1
-- Last accepted PR: PR #12 — Macro Phase B Productive Workspace
-- Macro B final reviewed PR head: `48863c043761c432f322b360142ca0f9bcafcd7e`
-- Macro B final acceptance CI before squash merge: run `32978712904` passed
+- Accepted runtime baseline SHA: `95e9928facd84d7e2e44b88f6680358c6af0da5e`
+- Accepted date: 2026-08-27
+- Current phase/milestone: Macro Phase A, Macro Phase B, and B4 2D Product Acceptance complete; C4.1 3D Preview is the next execution target
+- Last accepted PR: PR #16 — B4 2D Product Acceptance / Interaction Parity
+- B4 final reviewed PR head: `64264ba62dc712dfdaaacdfb50cf4648db403fe4`
+- B4 final acceptance CI before squash merge: run `33070294429` passed
 - A1+A2: accepted via PR #9; issues #2/#3 completed
 - A3: accepted via PR #11; issue #4 completed
 - Macro B: accepted via PR #12; issue #5 completed
-- B4: issue #13 open — 2D product acceptance and interaction parity
+- B4: accepted via PR #16; issue #13 completed
 
 Planning/specification commits may advance `main` beyond the accepted runtime baseline before the next execution branch is created. Runtime acceptance is established by reviewed PR/CI evidence, not by assuming every later documentation commit is a new runtime release.
 
@@ -102,7 +102,7 @@ npm run preview
 - Search results and search navigation are transient until explicit Add to project.
 - User/project/geocoder text is plain/safe text; imported or remote strings must not execute HTML/event handlers.
 - Normal production runtime does not expose test/legacy browser globals; `?test=1` is the explicit browser-test surface.
-- Future MapLibre/3D visualization must consume the same canonical Project Schema/store without duplicating canonical project state.
+- C4.1 MapLibre/3D Preview must consume the same canonical Project Schema/store without duplicating canonical project state; pitch/bearing and preview extrusion remain transient in C4.1.
 
 ## Protected behavior
 Changes must not alter the following unless explicitly approved and requalified:
@@ -169,29 +169,26 @@ Changes must not alter the following unless explicitly approved and requalified:
 - Preferred local execution: cheapest model that can reliably finish a bounded packet; architecture/UI migrations require actual browser/build/CI evidence.
 
 ## Git / release policy
-- Branch naming: bounded task branches such as `codex/b4-2d-product-acceptance`.
+- Branch naming: bounded task branches such as `codex/c4-1-maplibre-3d-preview`.
 - Commit policy: material multi-stage tasks should keep auditable internal checkpoint commits where the execution packet requires them.
 - PR policy: one bounded objective per PR where practical; include issue closure, exact validation evidence, limitations, and readiness decision.
 - Merge policy: ChatGPT/control-plane review of actual diff + CI + qualification evidence; architecture/security/high-impact changes require scrutiny gate; squash merge preferred for accepted bounded PRs.
-- Release policy: do not call the current v2 2D product acceptance-complete until B4 is explicitly qualified.
+- Release policy: 2D v2 is product-accepted through B4; do not call 3D Preview qualified until C4.1 acceptance is explicitly reviewed.
 
 ## Current known limitations / risks
-- Leaflet remains the only concrete renderer; MapLibre/Three.js/visible 3D are not implemented.
-- Leaflet.draw remains the drawing engine behind its adapter.
-- Macro B is architecture/workspace-qualified, but current 2D product acceptance is incomplete.
-- Legacy v1 custom right-click context menu is still present in HTML/Help but no longer wired in the TypeScript production runtime.
-- Blank-map exact-point marker creation, coordinate context display, and reverse geocoding are therefore missing from the current v2 interaction surface.
-- Toolbar Add Pin currently falls back to project map center when no explicit coordinate is supplied; B4 should replace this with precise placement mode.
-- Effective lock is not yet enforced consistently across every inspector/keyboard/context mutation surface; B4 must centralize the guard.
+- Leaflet remains the only implemented renderer on the accepted B4 runtime; C4.1 planning will add MapLibre 3D Preview.
+- Leaflet.draw remains the authoritative geometry drawing/editing engine; C4.1 3D is read-only for geometry.
 - Legacy `script.js` and `src/project-schema.js` remain outside the production graph for retained characterization compatibility.
 - Legacy v1 text/arrow semantics cannot be recovered from ambiguous historical files.
 - Basemap tiles and Nominatim remain external network services subject to provider availability/rate limits.
-- Engineering toolkit, report-quality export, interoperability expansion, and 3D visualization remain later work.
+- C4.1 will introduce OpenFreeMap as an external 3D vector-style/building-context dependency; automated CI must not depend on live provider availability.
+- Existing production bundle already emits a size warning; C4.1 must document MapLibre bundle delta and must not add Three.js.
+- Engineering toolkit, report-quality export, interoperability expansion, persistent elevation semantics, terrain, and true 3D assets remain later work.
 
 ## Current next objective
-- Execute issue #13 / B4 2D Product Acceptance using `docs/v2/CODEX_B4_PACKET.md` once the planning packet/branch is finalized.
-- Restore safe renderer-neutral context requests and reverse geocoding.
-- Replace implicit map-center Add Pin with precise placement mode as the universal touch/mobile route.
-- Enforce effective lock semantics across all mutation surfaces.
-- Qualify real user journeys from create/context-edit/history through save/reopen.
-- C4.1 remains architecture-ready but is deliberately blocked from implementation until B4 reports `B4_2D_PRODUCT_ACCEPTANCE_QUALIFIED` and `READY_TO_START_C4_1`.
+- Execute C4.1 3D Preview using `docs/v2/CODEX_C4_1_PACKET.md`.
+- Add `maplibre-gl@6.6.0` only; no Three.js in C4.1.
+- Preserve Project Schema v2 and the accepted B4 2D interaction/lock/context semantics.
+- Introduce renderer capabilities, transient 3D camera/mode state, MapLibre preview rendering for every current feature type, OpenFreeMap building context, and transient polygon/rectangle preview extrusion.
+- Geometry creation/editing remains 2D-only.
+- Final C4.1 qualification must report `C4_1_3D_PREVIEW_QUALIFIED` and whether the product is `READY_FOR_C4_2`.
