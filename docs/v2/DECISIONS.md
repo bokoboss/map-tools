@@ -108,3 +108,43 @@ This file records decisions that should not be re-litigated implicitly inside im
 **Why:** adding features to an unreliable persistence model compounds migration cost and data-loss risk.
 
 **Consequence:** Phase 4+ issues depend on completion of the earlier core phases.
+
+## ADR-014 — C4.1 is a read-only-for-geometry 3D Preview
+
+**Decision:** the first MapLibre slice is a visualization renderer. Geometry creation, dragging, and vertex editing remain authoritative in the qualified Leaflet 2D workspace.
+
+**Why:** proving a second renderer, camera, feature mapping, context, and failure lifecycle is already a substantial architectural change. Combining it with a second drawing/editing engine would make product acceptance and rollback materially harder.
+
+**Consequence:** C4.1 exposes renderer capabilities and disables geometry-edit/draw actions in 3D with an explicit route/reason to use 2D.
+
+## ADR-015 — C4.1 does not change Project Schema v2 for pitch, bearing, or preview height
+
+**Decision:** 3D pitch/bearing and project preview extrusion heights are transient renderer/workspace state.
+
+**Why:** camera presentation and provisional massing are not yet established engineering project semantics. Adding them now would force a schema/migration decision before the second renderer itself is qualified.
+
+**Consequence:** switching mode, orbiting, or changing preview extrusion does not dirty/history/serialize. C4.2 may separately propose versioned persistent height/elevation semantics.
+
+## ADR-016 — MapLibre GL JS is the C4 renderer; Three.js is deferred
+
+**Decision:** C4.1 adds `maplibre-gl@6.6.0` and uses native MapLibre GeoJSON/style/fill-extrusion capabilities. Three.js is not a C4.1 dependency.
+
+**Why:** MapLibre already supplies WebGL map camera, vector overlays, hit testing, and fill extrusion required for the first 2.5D slice. Three.js adds bundle/runtime/lifecycle complexity without being necessary until true 3D assets are introduced.
+
+**Consequence:** Three.js/custom 3D model layers remain C4.3 scope.
+
+## ADR-017 — OpenFreeMap is C4.1 renderer configuration, not canonical basemap state
+
+**Decision:** the initial 3D Preview uses OpenFreeMap Bright plus the OpenFreeMap building vector source, while ProjectDocumentV2 keeps its existing 2D `basemapId`.
+
+**Why:** current Leaflet raster basemap IDs do not map one-to-one to a MapLibre vector style. Persisting the 3D provider/style ID inside the existing field would create false semantics and break 2D expectations.
+
+**Consequence:** the 2D basemap selector is disabled/explained in 3D; returning to 2D restores the unchanged canonical basemap ID. Automated tests must not depend on live provider availability.
+
+## ADR-018 — Renderer capabilities, not concrete renderer type checks, govern UI behavior
+
+**Decision:** application/workspace/context behavior must query a renderer-neutral capability contract instead of `instanceof LeafletRenderer` or `instanceof MapLibrePreviewRenderer`.
+
+**Why:** product rules such as drawing/edit availability are semantic capabilities and should survive future renderer changes.
+
+**Consequence:** MapRenderer/RendererHost expose bounded capabilities and camera presentation primitives using renderer-neutral values only.
