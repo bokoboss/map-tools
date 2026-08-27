@@ -74,6 +74,42 @@ test('renderer replacement preserves the canonical project snapshot', () => {
   assert.equal(project.features.length, 0);
 });
 
+test('failed renderer construction leaves the current renderer active', () => {
+  const project = createEmptyProject({ projectId: 'renderer-failure-project' });
+  const current: MapRenderer = {
+    getCapabilities: () => ({ mode: '2d', drawing: true, geometryEditing: true, featureDragging: true, basemapSwitching: true, pitchBearing: false, contextRequests: true }),
+    getCameraPresentation: () => ({ pitchDeg: 0, bearingDeg: 0 }),
+    setCameraPresentation: () => undefined,
+    setView: () => undefined,
+    getView: () => project.mapView,
+    renderProject: () => undefined,
+    upsertFeature: () => undefined,
+    removeFeature: () => undefined,
+    setFeatureVisibility: () => undefined,
+    setLabelsVisible: () => undefined,
+    setFeatureEditable: () => undefined,
+    toggleFeatureEditable: () => undefined,
+    setPreviewExtrusions: () => undefined,
+    selectFeature: () => undefined,
+    fitFeature: () => undefined,
+    setBasemap: () => true,
+    getBasemapId: () => project.mapView.basemapId,
+    getBasemapOptions: () => [],
+    onMapClick: () => () => undefined,
+    onMapViewChanged: () => () => undefined,
+    onFeatureSelect: () => () => undefined,
+    onContextRequest: () => () => undefined,
+    cancelActiveInteractions: () => undefined,
+    showSearchResult: () => undefined,
+    clearSearchResult: () => undefined,
+    destroy: () => undefined
+  };
+  const host = new RendererHost(current);
+  assert.throws(() => host.replaceWith(() => { throw new Error('style failed'); }, clone(project)), /style failed/);
+  assert.equal(host.getCurrentRenderer(), current);
+  assert.equal(host.getCapabilities().mode, '2d');
+});
+
 test('TypeScript persistence round-trip remains renderer-independent', () => {
   const fixture = readFileSync(join(process.cwd(), 'docs', 'v2', 'fixtures', 'project-v2-mixed.json'), 'utf8');
   const first = deserializeProject(fixture).document;

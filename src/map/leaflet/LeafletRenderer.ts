@@ -86,7 +86,13 @@ export class LeafletRenderer implements MapRenderer {
 
   constructor(element: HTMLElement, callbacks: LeafletRendererCallbacks) {
     this.callbacks = callbacks;
-    this.map = L.map(element, { closePopupOnClick: false, zoomControl: false, drawControl: false }).setView([13.7563, 100.5018], 13);
+    this.map = L.map(element, {
+      closePopupOnClick: false,
+      zoomControl: false,
+      drawControl: false,
+      zoomAnimation: false,
+      fadeAnimation: false
+    }).setView([13.7563, 100.5018], 13);
     L.control.zoom({ position: 'bottomright' }).addTo(this.map);
     this.canvasRenderer = L.canvas();
     this.transientSearchLayer = L.layerGroup().addTo(this.map);
@@ -344,6 +350,10 @@ export class LeafletRenderer implements MapRenderer {
   }
 
   destroy(): void {
+    this.map.stop();
+    // Leaflet may leave a delayed zoom-transition callback after replacement.
+    // Prevent it from touching panes that are about to be removed.
+    (this.map as unknown as { _animatingZoom?: boolean })._animatingZoom = false;
     this.clearSearchResult();
     this.clearProjectLayers();
     this.map.off();

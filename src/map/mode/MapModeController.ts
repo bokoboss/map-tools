@@ -42,7 +42,8 @@ export class MapModeController {
     this.unsubscribeState = this.state.subscribe((snapshot) => {
       this.options.host.setPreviewExtrusions(snapshot.previewExtrusions);
     });
-    this.unsubscribeStore = this.options.store.subscribe((snapshot) => {
+    this.unsubscribeStore = this.options.store.subscribe((snapshot, change) => {
+      if (change === 'replace') this.state.clearPreviewExtrusions();
       const validPreviewIds = new Set(snapshot.features
         .filter((feature) => feature.type === 'polygon' || feature.type === 'rectangle')
         .map((feature) => feature.id));
@@ -54,6 +55,10 @@ export class MapModeController {
 
   getSnapshot(): MapModeSnapshot {
     return this.state.getSnapshot();
+  }
+
+  getPreviewHeight(featureId: FeatureId): number | null {
+    return this.state.getSnapshot().previewExtrusions[featureId] ?? null;
   }
 
   switchTo(mode: RendererMode): boolean {
@@ -118,6 +123,7 @@ export class MapModeController {
   }
 
   setPreviewExtrusion(featureId: FeatureId, enabled: boolean, heightM = 20): void {
+    if (this.state.getSnapshot().mode !== '3d-preview') return;
     const feature = this.options.store.getSnapshot().features.find((candidate) => candidate.id === featureId);
     if (!feature || (feature.type !== 'polygon' && feature.type !== 'rectangle')) return;
     this.state.setPreviewExtrusion(featureId, enabled ? heightM : null);
@@ -125,6 +131,7 @@ export class MapModeController {
   }
 
   setPreviewHeight(featureId: FeatureId, heightM: number): void {
+    if (this.state.getSnapshot().mode !== '3d-preview') return;
     const feature = this.options.store.getSnapshot().features.find((candidate) => candidate.id === featureId);
     if (!feature || (feature.type !== 'polygon' && feature.type !== 'rectangle')) return;
     if (!this.state.getSnapshot().previewExtrusions[featureId]) return;

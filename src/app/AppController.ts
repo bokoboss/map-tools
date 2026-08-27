@@ -22,6 +22,9 @@ export interface MapModeCommands {
   switchTo(mode: RendererMode): boolean;
   resetNorth(): void;
   topView(): void;
+  getPreviewHeight(featureId: string): number | null;
+  setPreviewExtrusion(featureId: string, enabled: boolean, heightM?: number): void;
+  setPreviewHeight(featureId: string, heightM: number): void;
 }
 
 function requiredElement<T extends Element>(id: string): T {
@@ -202,11 +205,13 @@ export class AppController {
 
   setModeController(controller: MapModeCommands): void {
     this.modeController = controller;
+    this.workspace.setPreviewExtrusionController(controller);
     this.updateRendererCapabilities(this.renderer.getCapabilities());
   }
 
   updateRendererCapabilities(capabilities: RendererCapabilities): void {
     const is3d = capabilities.mode === '3d-preview';
+    if (is3d) this.clearRendererMessage();
     this.mode2dBtn.setAttribute('aria-pressed', String(!is3d));
     this.mode3dBtn.setAttribute('aria-pressed', String(is3d));
     this.mode2dBtn.classList.toggle('is-active', !is3d);
@@ -228,6 +233,7 @@ export class AppController {
       button.disabled = !capabilities.basemapSwitching;
       button.title = capabilities.basemapSwitching ? (button.dataset.defaultTitle ?? button.textContent ?? '') : 'Basemap selection is available in 2D only.';
     });
+    this.workspace.refresh();
   }
 
   showRendererMessage(message: string): void {

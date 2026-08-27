@@ -501,6 +501,64 @@ body {
 .leaflet-marker-icon.workspace-selected-feature {
     filter: drop-shadow(0 0 4px #f97316) drop-shadow(0 0 2px white);
 }
+.maplibre-project-marker {
+    display: flex;
+    width: 25px;
+    height: 25px;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid white;
+    border-radius: 50% 50% 50% 0;
+    background: var(--marker-color, #2563eb);
+    color: white;
+    box-shadow: 0 1px 4px rgba(15, 23, 42, 0.45);
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 800;
+    transform: rotate(-45deg);
+}
+.maplibre-project-marker > span {
+    transform: rotate(45deg);
+}
+.maplibre-project-marker.workspace-selected-feature {
+    outline: 3px solid #f97316;
+    outline-offset: 2px;
+}
+.maplibre-project-text {
+    max-width: 260px;
+    cursor: pointer;
+    font-family: 'Sarabun', sans-serif;
+    line-height: 1.15;
+    white-space: nowrap;
+}
+.maplibre-project-text.is-label-hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+.maplibre-search-preview {
+    display: flex;
+    max-width: 240px;
+    flex-direction: column;
+    gap: 4px;
+    border: 1px solid #94a3b8;
+    border-radius: 7px;
+    background: white;
+    padding: 6px 8px;
+    color: #334155;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.25);
+    font-size: 0.74rem;
+}
+.maplibre-search-preview button {
+    align-self: flex-start;
+    border: 0;
+    border-radius: 4px;
+    background: #0369a1;
+    padding: 3px 6px;
+    color: white;
+    cursor: pointer;
+    font: inherit;
+    font-weight: 700;
+}
 
 /* Style for ALL custom control buttons */
 .custom-leaflet-control {

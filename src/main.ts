@@ -161,7 +161,7 @@ if (testSurfaceEnabled) {
   browserWindow.__mapToolsTest = {
     captureProjectDocument: () => app.captureProjectDocument(),
     getMarkers: () => activeLeaflet()?.getMarkers() ?? [],
-    getSearchResult: () => activeLeaflet()?.getSearchResult() ?? null,
+    getSearchResult: () => activeLeaflet()?.getSearchResult() ?? activePreview()?.getSearchResult() ?? null,
     getDrawnLayers: () => activeLeaflet()?.getDrawnLayers() ?? [],
     runtimeSnapshot: () => activeLeaflet()?.runtimeSnapshot() ?? activePreview()?.runtimeSnapshot() ?? { markers: [], drawn: [] },
     getWorkspaceState: () => app.getWorkspaceState(),
@@ -195,6 +195,11 @@ if (testSurfaceEnabled) {
     setPreviewExtrusion: (featureId: string, enabled: boolean, heightM?: number) => modeController.setPreviewExtrusion(featureId, enabled, heightM),
     setPreviewHeight: (featureId: string, heightM: number) => modeController.setPreviewHeight(featureId, heightM),
     getPreviewFeatures: () => activePreview()?.getPreviewFeatureSnapshot() ?? [],
+    getFeatureScreenPoint: (featureId: string) => activePreview()?.featureScreenPointForTest(featureId) ?? null,
+    getPreviewGeoJson: () => activePreview()?.getGeoJsonSnapshot() ?? null,
+    getProviderDiagnostics: () => activePreview()?.getProviderDiagnostics() ?? null,
+    getFeatureHitIds: (point: { x: number; y: number }) => activePreview()?.featureHitIdsAtScreenPointForTest(point) ?? [],
+    getRenderedFeatureDiagnostics: (point: { x: number; y: number }) => activePreview()?.renderedFeatureDiagnosticsForTest(point) ?? [],
     reinitializeRenderer: () => {
       let nextDrawing: RendererBundle['drawing'] | null = null;
       rendererHost.replaceWith(() => {

@@ -63,6 +63,12 @@ function appendButton(parent: HTMLElement, label: string, action: string, classN
   return button;
 }
 
+export interface PreviewExtrusionCommands {
+  getPreviewHeight(featureId: FeatureId): number | null;
+  setPreviewExtrusion(featureId: FeatureId, enabled: boolean, heightM?: number): void;
+  setPreviewHeight(featureId: FeatureId, heightM: number): void;
+}
+
 export class WorkspaceController {
   private readonly panel = requiredElement<HTMLElement>('workspace-panel');
   private readonly objectList = requiredElement<HTMLElement>('object-list');
@@ -80,6 +86,7 @@ export class WorkspaceController {
   private readonly unsubscribeRenderer: () => void;
   private filter = '';
   private readonly knownGroupIds = new Set<string>();
+  private previewExtrusionCommands: PreviewExtrusionCommands | null = null;
 
   constructor(store: ProjectStore, renderer: MapRenderer, state = new WorkspaceState()) {
     this.store = store;
@@ -107,6 +114,15 @@ export class WorkspaceController {
 
   getState(): WorkspaceStateSnapshotLike {
     return this.state.getSnapshot();
+  }
+
+  setPreviewExtrusionController(commands: PreviewExtrusionCommands | null): void {
+    this.previewExtrusionCommands = commands;
+    this.renderInspector();
+  }
+
+  refresh(): void {
+    this.render();
   }
 
   selectFeature(featureId: FeatureId | null): void {
@@ -459,6 +475,40 @@ export class WorkspaceController {
     container.appendChild(this.colorField('Fill color', feature.style.fillColor ?? feature.style.color, '#f06eaa', (value) => this.updateStyle(feature.id, { fillColor: value }, 'Edit fill color')));
     container.appendChild(this.numberField('Weight', feature.style.weightPx ?? 4, 'weightPx', (value) => this.updateStyle(feature.id, { weightPx: value }, 'Edit stroke weight'), 0, 100));
     container.appendChild(this.numberField('Fill opacity', feature.style.fillOpacity ?? 0.2, 'fillOpacity', (value) => this.updateStyle(feature.id, { fillOpacity: value }, 'Edit fill opacity'), 0, 1, 0.05));
+    this.renderPreviewExtrusionControls(container, feature);
+  }
+
+  private renderPreviewExtrusionControls(container: HTMLElement, feature: Extract<ProjectFeature, { type: 'polygon' | 'rectangle' }>): void {
+    const commands = this.previewExtrusionCommands;
+    if (!commands) return;
+    const active = this.renderer.getCapabilities().mode === '3d-preview';
+    const height = commands.getPreviewHeight(feature.id);
+    const section = document.createElement('div');
+    section.className = 'workspace-preview-extrusion workspace-field-full';
+    const heading = document.createElement('p');
+    heading.className = 'workspace-subheading';
+    heading.textContent = '3D Preview extrusion';
+    section.appendChild(heading);
+    const toggle = this.checkboxField('Preview height', height !== null, `preview-extrusion-${feature.id}`, (enabled) => {
+      commands.setPreviewExtrusion(feature.id, enabled, Number(heightInput.value) || 20);
+      heightInput.disabled = !enabled || !active;
+    });
+    const toggleInput = toggle.querySelector('input');
+    if (toggleInput instanceof HTMLInputElement) toggleInput.disabled = !active;
+    section.appendChild(toggle);
+    const heightInputField = this.numberInput('Height (m)', String(height ?? 20), `preview-height-${feature.id}`, 1, 10000, 1);
+    const heightInput = heightInputField.input;
+    heightInput.disabled = !active || height === null;
+    heightInput.addEventListener('change', () => {
+      const value = Number(heightInput.value);
+      if (Number.isFinite(value) && value > 0) commands.setPreviewHeight(feature.id, value);
+    });
+    section.appendChild(heightInputField.wrapper);
+    const help = document.createElement('p');
+    help.className = 'workspace-help-text';
+    help.textContent = active ? 'Temporary renderer preview; never saved to the project.' : 'Switch to 3D Preview to enable this temporary height.';
+    section.appendChild(help);
+    container.appendChild(section);
   }
 
   private renderCircleInspector(container: HTMLElement, feature: Extract<ProjectFeature, { type: 'circle' }>): void {
