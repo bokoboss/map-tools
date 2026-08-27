@@ -37,15 +37,81 @@ test('effective lock policy preserves group and feature lock sources', () => {
   }
   assert.equal(canMutateGroup(project, 'locked-group', 'lock'), true);
   assert.equal(canMutateGroup(project, 'locked-group', 'rename'), false);
+  assert.equal(canMutateGroup(project, 'locked-group', 'delete'), false);
 
   project.groups[0].locked = false;
   feature.locked = true;
   assert.equal(featureIsEffectivelyLocked(project, feature.id), true);
   assert.equal(canMutateGroup(project, 'locked-group', 'rename'), true);
-  assert.equal(canMutateGroup(project, 'locked-group', 'delete'), true);
+  assert.equal(canMutateGroup(project, 'locked-group', 'delete'), false);
   feature.locked = false;
   assert.equal(featureIsEffectivelyLocked(project, feature.id), false);
   assert.equal(canMutateGroup(project, 'locked-group', 'delete'), true);
+});
+
+function groupedProject(projectId: string) {
+  const project = createEmptyProject({ projectId });
+  const group = { id: 'group-1', name: 'Group', visible: true, locked: false, order: 1 };
+  const feature = marker('feature-1');
+  feature.groupId = group.id;
+  project.groups.push(group);
+  project.features.push(feature);
+  return { project, groupId: group.id, featureId: feature.id };
+}
+
+function tryDeleteGroup(store: ProjectStore, groupId: string): boolean {
+  if (!canMutateGroup(store.getSnapshot(), groupId, 'delete')) return false;
+  store.mutate((draft) => {
+    draft.features.forEach((feature) => {
+      if (feature.groupId === groupId) feature.groupId = null;
+    });
+    draft.groups = draft.groups.filter((group) => group.id !== groupId);
+  }, 'Delete group (ungroup children)');
+  return true;
+}
+
+test('group deletion treats ungrouping as protected group assignment', () => {
+  const lockedParent = groupedProject('b4-group-delete-locked-parent');
+  lockedParent.project.groups[0].locked = true;
+  const lockedParentStore = new ProjectStore(lockedParent.project);
+  const lockedParentBefore = lockedParentStore.getSnapshot();
+  assert.equal(canMutateGroup(lockedParentBefore, lockedParent.groupId, 'delete'), false);
+  assert.equal(tryDeleteGroup(lockedParentStore, lockedParent.groupId), false);
+  assert.equal(lockedParentStore.getSnapshot().groups[0].id, lockedParent.groupId);
+  assert.equal(lockedParentStore.getSnapshot().features[0].groupId, lockedParent.groupId);
+  assert.equal(lockedParentStore.getSnapshot().features[0].locked, false);
+  assert.equal(lockedParentStore.getHistoryState().length, 0);
+  assert.equal(lockedParentStore.isDirty(), false);
+
+  const lockedChild = groupedProject('b4-group-delete-locked-child');
+  lockedChild.project.features[0].locked = true;
+  const lockedChildStore = new ProjectStore(lockedChild.project);
+  const lockedChildBefore = lockedChildStore.getSnapshot();
+  assert.equal(canMutateGroup(lockedChildBefore, lockedChild.groupId, 'delete'), false);
+  assert.equal(tryDeleteGroup(lockedChildStore, lockedChild.groupId), false);
+  assert.equal(lockedChildStore.getSnapshot().groups[0].id, lockedChild.groupId);
+  assert.equal(lockedChildStore.getSnapshot().features[0].groupId, lockedChild.groupId);
+  assert.equal(lockedChildStore.getSnapshot().features[0].locked, true);
+  assert.equal(lockedChildStore.getHistoryState().length, 0);
+  assert.equal(lockedChildStore.isDirty(), false);
+
+  const editable = groupedProject('b4-group-delete-editable');
+  const editableStore = new ProjectStore(editable.project);
+  assert.equal(canMutateGroup(editableStore.getSnapshot(), editable.groupId, 'delete'), true);
+  assert.equal(tryDeleteGroup(editableStore, editable.groupId), true);
+  assert.equal(editableStore.getSnapshot().groups.some((group) => group.id === editable.groupId), false);
+  assert.equal(editableStore.getSnapshot().features[0].groupId, null);
+  assert.equal(editableStore.getSnapshot().features[0].locked, false);
+  assert.equal(editableStore.getHistoryState().length, 1);
+  assert.equal(editableStore.isDirty(), true);
+  assert.equal(editableStore.undo(), true);
+  assert.equal(editableStore.getSnapshot().groups[0].id, editable.groupId);
+  assert.equal(editableStore.getSnapshot().features[0].groupId, editable.groupId);
+  assert.equal(editableStore.getSnapshot().features[0].locked, false);
+  assert.equal(editableStore.redo(), true);
+  assert.equal(editableStore.getSnapshot().groups.some((group) => group.id === editable.groupId), false);
+  assert.equal(editableStore.getSnapshot().features[0].groupId, null);
+  assert.equal(editableStore.getSnapshot().features[0].locked, false);
 });
 
 test('ProjectStore rejects blocked feature mutations without history or dirty state', () => {

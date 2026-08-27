@@ -39,12 +39,16 @@ export function canMutateFeature(project: ProjectDocumentV2, featureId: FeatureI
 
 export type GroupMutationKind = 'visibility' | 'lock' | 'rename' | 'delete' | 'assignment';
 
-/** Group visibility/lock changes and explicit group ungrouping are group-level commands. */
+/** Group visibility/lock changes are group-level commands; ungrouping is reassignment. */
 export function canMutateGroup(project: ProjectDocumentV2, groupId: string, mutationKind: GroupMutationKind): boolean {
   const group = project.groups.find((candidate) => candidate.id === groupId);
   if (!group) return false;
   if (mutationKind === 'visibility' || mutationKind === 'lock') return true;
-  if (mutationKind === 'delete') return true;
+  if (mutationKind === 'delete') {
+    return !group.locked && project.features
+      .filter((feature) => feature.groupId === groupId)
+      .every((feature) => canMutateFeature(project, feature.id, 'group'));
+  }
   if (group.locked) return false;
   if (mutationKind === 'rename') return true;
   return project.features

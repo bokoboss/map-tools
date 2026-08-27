@@ -372,15 +372,76 @@ test('J6 direct and group locks protect every prohibited route while preserving 
   await child.locator('[data-action="select-feature"]').click();
   await expect(page.locator('#inspector-name')).toBeDisabled();
   await expect(group.locator('[data-action="rename-group"]')).toBeDisabled();
-  await expect(group.locator('[data-action="delete-group"]')).toBeEnabled();
+  const groupDelete = group.locator('[data-action="delete-group"]');
+  await expect(groupDelete).toBeDisabled();
+  await expect(groupDelete).toHaveAttribute('aria-disabled', 'true');
+  const caseABefore = await page.evaluate(id => {
+    const project = window.__mapToolsTest.captureProjectDocument();
+    const child = project.features.find(feature => feature.id === id);
+    return { groupExists: project.groups.some(group => group.id === 'group-survey'), groupId: child.groupId, locked: child.locked, history: window.__mapToolsTest.getHistoryState().length, dirty: window.__mapToolsTest.isDirty() };
+  }, directId);
+  await groupDelete.evaluate(button => {
+    button.disabled = false;
+    button.click();
+    button.disabled = true;
+  });
+  await expect.poll(() => page.evaluate(id => {
+    const project = window.__mapToolsTest.captureProjectDocument();
+    const child = project.features.find(feature => feature.id === id);
+    return { groupExists: project.groups.some(group => group.id === 'group-survey'), groupId: child.groupId, locked: child.locked, history: window.__mapToolsTest.getHistoryState().length, dirty: window.__mapToolsTest.isDirty() };
+  }, directId)).toEqual(caseABefore);
+
+  await group.locator('[data-action="toggle-group-lock"]').click();
   await child.locator('[data-action="toggle-feature-lock"]').click();
   expect(await page.evaluate(id => window.__mapToolsTest.captureProjectDocument().features.find(feature => feature.id === id).locked, directId)).toBe(true);
-  await group.locator('[data-action="toggle-group-lock"]').click();
-  await expect(child).toHaveClass(/is-locked-feature/);
-  await expect(page.locator('#inspector-name')).toBeDisabled();
+  await expect(groupDelete).toBeDisabled();
+  await expect(groupDelete).toHaveAttribute('aria-disabled', 'true');
+  const caseBBefore = await page.evaluate(id => {
+    const project = window.__mapToolsTest.captureProjectDocument();
+    const child = project.features.find(feature => feature.id === id);
+    return { groupExists: project.groups.some(group => group.id === 'group-survey'), groupLocked: project.groups.find(group => group.id === 'group-survey').locked, groupId: child.groupId, locked: child.locked, history: window.__mapToolsTest.getHistoryState().length, dirty: window.__mapToolsTest.isDirty() };
+  }, directId);
+  await groupDelete.evaluate(button => {
+    button.disabled = false;
+    button.click();
+    button.disabled = true;
+  });
+  await expect.poll(() => page.evaluate(id => {
+    const project = window.__mapToolsTest.captureProjectDocument();
+    const child = project.features.find(feature => feature.id === id);
+    return { groupExists: project.groups.some(group => group.id === 'group-survey'), groupLocked: project.groups.find(group => group.id === 'group-survey').locked, groupId: child.groupId, locked: child.locked, history: window.__mapToolsTest.getHistoryState().length, dirty: window.__mapToolsTest.isDirty() };
+  }, directId)).toEqual(caseBBefore);
+
   await child.locator('[data-action="toggle-feature-lock"]').click();
   await expect(child).not.toHaveClass(/is-locked-feature/);
   await expect(page.locator('#inspector-name')).toBeEnabled();
+  const caseCBefore = await page.evaluate(() => {
+    const project = window.__mapToolsTest.captureProjectDocument();
+    const children = project.features.filter(feature => feature.groupId === 'group-survey').map(feature => ({ id: feature.id, groupId: feature.groupId, locked: feature.locked }));
+    return { groupExists: project.groups.some(group => group.id === 'group-survey'), groupLocked: project.groups.find(group => group.id === 'group-survey').locked, children, history: window.__mapToolsTest.getHistoryState().length, dirty: window.__mapToolsTest.isDirty() };
+  });
+  expect(caseCBefore.groupLocked).toBe(false);
+  expect(caseCBefore.children.length).toBeGreaterThan(0);
+  expect(caseCBefore.children.every(feature => !feature.locked)).toBe(true);
+  await expect(groupDelete).toBeEnabled();
+  await expect(groupDelete).toHaveAttribute('aria-disabled', 'false');
+  await groupDelete.click();
+  await expect.poll(() => page.evaluate(() => {
+    const project = window.__mapToolsTest.captureProjectDocument();
+    return { groupExists: project.groups.some(group => group.id === 'group-survey'), children: project.features.filter(feature => feature.id.startsWith('marker-survey-')).map(feature => ({ id: feature.id, groupId: feature.groupId, locked: feature.locked })) };
+  })).toEqual({ groupExists: false, children: caseCBefore.children.map(feature => ({ ...feature, groupId: null })) });
+  expect(await page.evaluate(() => window.__mapToolsTest.getHistoryState().length)).toBe(caseCBefore.history + 1);
+  expect(await page.evaluate(() => window.__mapToolsTest.isDirty())).toBe(true);
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => page.evaluate(() => {
+    const project = window.__mapToolsTest.captureProjectDocument();
+    return { groupExists: project.groups.some(group => group.id === 'group-survey'), children: project.features.filter(feature => feature.id.startsWith('marker-survey-')).map(feature => ({ id: feature.id, groupId: feature.groupId, locked: feature.locked })) };
+  })).toEqual({ groupExists: true, children: caseCBefore.children });
+  await page.keyboard.press('Control+Shift+z');
+  await expect.poll(() => page.evaluate(() => {
+    const project = window.__mapToolsTest.captureProjectDocument();
+    return { groupExists: project.groups.some(group => group.id === 'group-survey'), children: project.features.filter(feature => feature.id.startsWith('marker-survey-')).map(feature => ({ id: feature.id, groupId: feature.groupId, locked: feature.locked })) };
+  })).toEqual({ groupExists: false, children: caseCBefore.children.map(feature => ({ ...feature, groupId: null })) });
 });
 
 test('J7 context menu lifecycle, viewport clamping, focus, and Escape are deterministic', async ({ page }) => {

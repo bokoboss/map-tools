@@ -179,7 +179,7 @@ export class WorkspaceController {
     const section = document.createElement('section');
     section.className = 'workspace-group';
     section.dataset.groupId = group.id;
-    const header = this.createGroupHeader(group, features.length);
+    const header = this.createGroupHeader(snapshot, group, features.length);
     section.appendChild(header);
     if (this.state.isGroupExpanded(group.id)) {
       const list = document.createElement('div');
@@ -207,7 +207,7 @@ export class WorkspaceController {
     this.objectList.appendChild(section);
   }
 
-  private createGroupHeader(group: ProjectGroup, count: number): HTMLElement {
+  private createGroupHeader(snapshot: ProjectDocumentV2, group: ProjectGroup, count: number): HTMLElement {
     const header = document.createElement('div');
     header.className = 'workspace-group-header';
     const toggle = appendButton(header, `${this.state.isGroupExpanded(group.id) ? 'Collapse' : 'Expand'} ${group.name}`, 'toggle-group', 'workspace-disclosure');
@@ -233,6 +233,9 @@ export class WorkspaceController {
     const remove = appendButton(actions, `Ungroup and remove ${group.name}`, 'delete-group');
     remove.dataset.groupId = group.id;
     remove.textContent = '×';
+    const canDelete = canMutateGroup(snapshot, group.id, 'delete');
+    remove.disabled = !canDelete;
+    remove.setAttribute('aria-disabled', String(!canDelete));
     rename.disabled = group.locked;
     rename.setAttribute('aria-disabled', String(group.locked));
     header.appendChild(actions);
