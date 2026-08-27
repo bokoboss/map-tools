@@ -1,8 +1,9 @@
 import L from 'leaflet';
+import { canMutateFeature, featureIsEffectivelyLocked } from '../../domain/mutationPolicy';
 import type { Coordinate, FeatureId, FeatureStyle, MapView, ProjectDocumentV2, ProjectFeature } from '../../domain/model';
 import { clone, effectiveState } from '../../domain/project';
 import { formatArea, formatDistance, polygonAreaSquareMeters, polylineLength } from '../../measurement';
-import type { BasemapOption, FeatureAction, FeatureChangePhase, GeocodingPreview, MapRenderer } from '../renderer/MapRenderer';
+import type { BasemapOption, FeatureAction, FeatureChangePhase, GeocodingPreview, MapContextRequest, MapRenderer } from '../renderer/MapRenderer';
 import { fromLeafletLatLng, toLeafletLatLng, toLeafletLatLngs } from './coordinates';
 
 type RuntimeLayer = L.Layer & {
@@ -70,6 +71,7 @@ export class LeafletRenderer implements MapRenderer {
   private readonly drawnLayers = new Map<string, RuntimeLayer>();
   private readonly mapClickListeners = new Set<(coordinate: Coordinate) => void>();
   private readonly featureSelectListeners = new Set<(featureId: FeatureId | null) => void>();
+  private readonly contextRequestListeners = new Set<(request: MapContextRequest) => void>();
   private readonly callbacks: LeafletRendererCallbacks;
   private currentBasemapId = 'osm-standard';
   private currentBaseLayer: L.Layer;
@@ -104,6 +106,10 @@ export class LeafletRenderer implements MapRenderer {
     this.map.on('click', (event: L.LeafletMouseEvent) => {
       const coordinate = fromLeafletLatLng(event.latlng);
       this.mapClickListeners.forEach((listener) => listener(coordinate));
+    });
+    this.map.on('contextmenu', (event: L.LeafletMouseEvent) => {
+      L.DomEvent.stop(event);
+      this.publishContextRequest(null, event.latlng, event.containerPoint);
     });
     this.map.on('moveend', () => {
       if (this.ignoreNextMoveEnd) {
@@ -182,6 +188,7 @@ export class LeafletRenderer implements MapRenderer {
   }
 
   setFeatureEditable(featureId: string, enabled: boolean): void {
+    if (enabled && this.isFeatureLocked(featureId)) return;
     const layer = this.featureLayers.get(featureId);
     const target = this.editTarget(layer);
     if (!target?.editing) return;
@@ -190,6 +197,7 @@ export class LeafletRenderer implements MapRenderer {
   }
 
   toggleFeatureEditable(featureId: string): void {
+    if (this.isFeatureLocked(featureId)) return;
     const layer = this.featureLayers.get(featureId);
     const target = this.editTarget(layer);
     if (!target?.editing) return;
@@ -233,6 +241,11 @@ export class LeafletRenderer implements MapRenderer {
   onFeatureSelect(listener: (featureId: FeatureId | null) => void): () => void {
     this.featureSelectListeners.add(listener);
     return () => this.featureSelectListeners.delete(listener);
+  }
+
+  onContextRequest(listener: (request: MapContextRequest) => void): () => void {
+    this.contextRequestListeners.add(listener);
+    return () => this.contextRequestListeners.delete(listener);
   }
 
   showSearchResult(preview: GeocodingPreview, onAdd: () => void): void {
@@ -357,6 +370,28 @@ export class LeafletRenderer implements MapRenderer {
     this.featureSelectListeners.forEach((listener) => listener(featureId));
   }
 
+  private publishContextRequest(featureId: FeatureId | null, latlng: L.LatLng, containerPoint?: L.Point): void {
+    const point = containerPoint ?? this.map.latLngToContainerPoint(latlng);
+    const bounds = this.map.getContainer().getBoundingClientRect();
+    const request: MapContextRequest = {
+      featureId,
+      coordinate: fromLeafletLatLng(latlng),
+      clientPoint: { x: bounds.left + point.x, y: bounds.top + point.y },
+      source: 'mouse'
+    };
+    this.contextRequestListeners.forEach((listener) => listener(request));
+  }
+
+  private isFeatureLocked(featureId: FeatureId): boolean {
+    return this.currentProject ? featureIsEffectivelyLocked(this.currentProject, featureId) : false;
+  }
+
+  private restoreFeatureRuntime(featureId: FeatureId): void {
+    if (!this.currentProject) return;
+    const feature = this.currentProject.features.find((candidate) => candidate.id === featureId);
+    if (feature) this.renderProject(this.currentProject);
+  }
+
   private applySelectionHighlight(): void {
     const selectedId = this.selectedFeatureId;
     for (const [featureId, layer] of this.featureLayers) {
@@ -384,13 +419,23 @@ export class LeafletRenderer implements MapRenderer {
     marker.circleLayerGroup = L.layerGroup();
     marker.bindPopup(this.createMarkerPopupContent(feature), { autoClose: false, closeButton: false });
     marker.on('click', () => this.publishSelection(feature.id));
+    marker.on('contextmenu', (event: L.LeafletMouseEvent) => {
+      L.DomEvent.stop(event);
+      this.publishContextRequest(feature.id, event.latlng, event.containerPoint);
+    });
     marker.on('dragstart', () => {
+      if (this.isFeatureLocked(feature.id)) return;
       marker.closePopup();
       this.activeFeatureInteractions.add(feature.id);
       this.callbacks.onFeatureInteractionStart?.(feature.id, `Move ${feature.name}`);
     });
     marker.on('drag', () => this.drawCirclesForMarker(marker));
     marker.on('dragend', () => {
+      if (this.isFeatureLocked(feature.id)) {
+        this.restoreFeatureRuntime(feature.id);
+        this.activeFeatureInteractions.delete(feature.id);
+        return;
+      }
       this.publishFeature(feature.id, marker, 'commit');
       this.activeFeatureInteractions.delete(feature.id);
     });
@@ -407,11 +452,21 @@ export class LeafletRenderer implements MapRenderer {
     marker.isTextLabel = true;
     marker.bindPopup(this.createMarkerPopupContent(feature), { autoClose: false, closeButton: false });
     marker.on('click', () => this.publishSelection(feature.id));
+    marker.on('contextmenu', (event: L.LeafletMouseEvent) => {
+      L.DomEvent.stop(event);
+      this.publishContextRequest(feature.id, event.latlng, event.containerPoint);
+    });
     marker.on('dragstart', () => {
+      if (this.isFeatureLocked(feature.id)) return;
       this.activeFeatureInteractions.add(feature.id);
       this.callbacks.onFeatureInteractionStart?.(feature.id, `Move ${feature.name}`);
     });
     marker.on('dragend', () => {
+      if (this.isFeatureLocked(feature.id)) {
+        this.restoreFeatureRuntime(feature.id);
+        this.activeFeatureInteractions.delete(feature.id);
+        return;
+      }
       this.publishFeature(feature.id, marker, 'commit');
       this.activeFeatureInteractions.delete(feature.id);
     });
@@ -438,6 +493,17 @@ export class LeafletRenderer implements MapRenderer {
     const target = this.editTarget(layer);
     if (target && 'bindPopup' in target) {
       (target as L.Path).bindPopup(() => this.createShapePopupContent(featureId), { autoClose: true, closeOnClick: true });
+      target.on('contextmenu', (event: L.LeafletMouseEvent) => {
+        L.DomEvent.stop(event);
+        this.publishContextRequest(featureId, event.latlng, event.containerPoint);
+      });
+      if (layer.isArrow && layer instanceof L.FeatureGroup) {
+        const head = layer.getLayers().find((item) => item instanceof L.Marker);
+        head?.on('contextmenu', (event: L.LeafletMouseEvent) => {
+          L.DomEvent.stop(event);
+          this.publishContextRequest(featureId, event.latlng, event.containerPoint);
+        });
+      }
       target.on('click', (event: L.LeafletMouseEvent) => {
         L.DomEvent.stop(event);
         this.publishSelection(featureId);
@@ -445,15 +511,28 @@ export class LeafletRenderer implements MapRenderer {
         else target.openPopup(event.latlng);
       });
       target.on('editstart', () => {
+        if (this.isFeatureLocked(featureId)) {
+          target.editing?.disable();
+          return;
+        }
         this.activeFeatureInteractions.add(featureId);
         const feature = this.currentProject?.features.find((candidate) => candidate.id === featureId);
         this.callbacks.onFeatureInteractionStart?.(featureId, `Edit ${feature?.name ?? 'feature'} geometry`);
       });
       target.on('edit', () => {
+        if (this.isFeatureLocked(featureId) || !this.currentProject || !canMutateFeature(this.currentProject, featureId, 'geometry')) {
+          this.restoreFeatureRuntime(featureId);
+          return;
+        }
         if (layer.isArrow) this.updateArrowHead(layer);
         if (!this.activeFeatureInteractions.has(featureId)) this.publishFeature(featureId, layer, 'commit');
       });
       target.on('editend', () => {
+        if (this.isFeatureLocked(featureId)) {
+          this.restoreFeatureRuntime(featureId);
+          this.activeFeatureInteractions.delete(featureId);
+          return;
+        }
         this.publishFeature(featureId, layer, 'commit');
         this.activeFeatureInteractions.delete(featureId);
       });
@@ -519,7 +598,7 @@ export class LeafletRenderer implements MapRenderer {
     marker.circleLayerGroup?.clearLayers();
     const latlng = marker.getLatLng();
     (marker.radii ?? []).forEach((radius) => {
-      L.circle(latlng, { renderer: this.canvasRenderer, radius: radius.distance, color: radius.color, fillColor: radius.color, fillOpacity: radius.fillOpacity }).addTo(marker.circleLayerGroup!);
+      L.circle(latlng, { renderer: this.canvasRenderer, radius: radius.distance, color: radius.color, fillColor: radius.color, fillOpacity: radius.fillOpacity, interactive: false }).addTo(marker.circleLayerGroup!);
     });
   }
 
@@ -529,7 +608,32 @@ export class LeafletRenderer implements MapRenderer {
     const label = document.createElement('b');
     label.textContent = feature.name;
     container.appendChild(label);
-    container.addEventListener('dblclick', () => this.callbacks.onFeatureAction('edit', feature.id));
+    const actions = document.createElement('div');
+    actions.className = 'popup-actions';
+    const locked = this.currentProject ? featureIsEffectivelyLocked(this.currentProject, feature.id) : false;
+    const addAction = (text: string, action: FeatureAction): void => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = text;
+      button.title = text;
+      button.disabled = locked;
+      button.setAttribute('aria-disabled', String(locked));
+      button.addEventListener('click', () => this.callbacks.onFeatureAction(action, feature.id));
+      actions.appendChild(button);
+    };
+    if (feature.type === 'marker') {
+      addAction('Edit', 'edit');
+      addAction('Radii', 'edit-radius');
+      addAction('Delete', 'delete');
+    } else if (feature.type === 'text') {
+      addAction('Edit', 'edit');
+      addAction('Rotate', 'rotate');
+      addAction('Delete', 'delete');
+    }
+    container.appendChild(actions);
+    container.addEventListener('dblclick', () => {
+      if (!locked) this.callbacks.onFeatureAction('edit', feature.id);
+    });
     return container;
   }
 
@@ -545,12 +649,15 @@ export class LeafletRenderer implements MapRenderer {
     container.appendChild(measurement);
     const actions = document.createElement('div');
     actions.className = 'flex items-center justify-around mt-2';
+    const locked = this.currentProject ? featureIsEffectivelyLocked(this.currentProject, featureId) : false;
     const addAction = (label: string, action: FeatureAction): void => {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'p-2 rounded-full hover:bg-gray-200';
       button.title = label;
       button.textContent = label;
+      button.disabled = locked;
+      button.setAttribute('aria-disabled', String(locked));
       button.addEventListener('click', () => this.callbacks.onFeatureAction(action, featureId));
       actions.appendChild(button);
     };

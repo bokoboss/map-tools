@@ -17,8 +17,12 @@ function fromLatLng(latlng: L.LatLng): Coordinate {
   return [Number(latlng.lng), Number(latlng.lat)];
 }
 
-function coordinatesFromLayer(layer: L.Polyline | L.Polygon): Coordinate[] {
+function lineCoordinatesFromLayer(layer: L.Polyline): Coordinate[] {
   return (layer.getLatLngs() as L.LatLng[]).map(fromLatLng);
+}
+
+function polygonCoordinatesFromLayer(layer: L.Polygon): Coordinate[] {
+  return ((layer.getLatLngs()[0] ?? []) as L.LatLng[]).map(fromLatLng);
 }
 
 export class LeafletDrawAdapter implements DrawingAdapter {
@@ -98,9 +102,9 @@ export class LeafletDrawAdapter implements DrawingAdapter {
       return { type: 'rectangle', name: 'Rectangle', geometry: { kind: 'bounds', southWest: fromLatLng(bounds.getSouthWest()), northEast: fromLatLng(bounds.getNorthEast()) }, style };
     }
     if (tool === 'polygon' && layer instanceof L.Polygon) {
-      return { type: 'polygon', name: 'Polygon', geometry: { kind: 'polygon', coordinates: coordinatesFromLayer(layer) }, style };
+      return { type: 'polygon', name: 'Polygon', geometry: { kind: 'polygon', coordinates: polygonCoordinatesFromLayer(layer) }, style };
     }
     const line = layer as L.Polyline;
-    return { type: tool === 'arrow' ? 'arrow' : 'polyline', name: tool === 'arrow' ? 'Arrow' : 'Polyline', geometry: { kind: 'lineString', coordinates: coordinatesFromLayer(line) }, style: tool === 'arrow' ? { ...style, arrowHead: 'end' } : style };
+    return { type: tool === 'arrow' ? 'arrow' : 'polyline', name: tool === 'arrow' ? 'Arrow' : 'Polyline', geometry: { kind: 'lineString', coordinates: lineCoordinatesFromLayer(line) }, style: tool === 'arrow' ? { ...style, arrowHead: 'end' } : style };
   }
 }

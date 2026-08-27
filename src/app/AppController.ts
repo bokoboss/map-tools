@@ -1,4 +1,5 @@
 import { createId, clone } from '../domain/project';
+import { canMutateFeature } from '../domain/mutationPolicy';
 import type { Coordinate, ProjectFeature } from '../domain/model';
 import { deserializeProject, normalizeProject, serializeProject } from '../persistence/projectSchema';
 import { ProjectStore } from '../store/ProjectStore';
@@ -6,6 +7,7 @@ import type { DrawTool, DrawnFeatureDraft, DrawingAdapter } from '../drawing/Dra
 import type { GeocodingResult, GeocodingService } from '../geocoding/GeocodingService';
 import { exportMapToPng } from '../export/QuickPngExporter';
 import type { FeatureAction, GeocodingPreview, MapRenderer } from '../map/renderer/MapRenderer';
+import { ContextMenuController } from './ContextMenuController';
 import { WorkspaceController } from '../workspace/WorkspaceController';
 
 type ColorPickerTarget =
@@ -40,8 +42,10 @@ export class AppController {
   private drawing: DrawingAdapter;
   private readonly geocoder: GeocodingService;
   private readonly workspace: WorkspaceController;
+  private readonly contextMenu: ContextMenuController;
   private readonly unsubscribeStore: () => void;
   private readonly unsubscribeMapClick: () => void;
+  private readonly unsubscribeContextRequest: () => void;
   private readonly keyboardHandler = (event: KeyboardEvent): void => this.handleKeyboard(event);
 
   private markerToEditId: string | null = null;
@@ -55,6 +59,7 @@ export class AppController {
   private tempCoordinate: Coordinate | null = null;
   private isAddingText = false;
   private activeDrawTool: DrawTool | null = null;
+  private markerPlacementActive = false;
   private areLabelsVisible = false;
   private searchResultData: GeocodingResult[] = [];
 
@@ -65,6 +70,7 @@ export class AppController {
   private readonly toolPanel = requiredElement<HTMLElement>('main-tool-panel');
   private readonly toggleToolPanelBtn = requiredElement<HTMLButtonElement>('toggle-tool-panel-btn');
   private readonly addPinBtn = requiredElement<HTMLButtonElement>('add-pin-btn');
+  private readonly placementStatus = requiredElement<HTMLElement>('placement-status');
   private readonly pinModal = requiredElement<HTMLElement>('pin-modal');
   private readonly savePinBtn = requiredElement<HTMLButtonElement>('save-pin-btn');
   private readonly cancelPinBtn = requiredElement<HTMLButtonElement>('cancel-pin-btn');
@@ -74,6 +80,7 @@ export class AppController {
   private readonly toggleLabelsIcon = requiredElement<SVGElement>('toggle-labels-icon');
   private readonly deleteAllBtn = requiredElement<HTMLButtonElement>('delete-all-btn');
   private readonly modalTitle = requiredElement<HTMLElement>('modal-title');
+  private readonly pinCoordinatePreview = requiredElement<HTMLElement>('pin-coordinate-preview');
   private readonly markerColorSelector = requiredElement<HTMLElement>('marker-color-selector');
   private readonly radiusManagementSection = requiredElement<HTMLElement>('radius-management-section');
   private readonly deleteConfirmModal = requiredElement<HTMLElement>('delete-confirm-modal');
@@ -149,6 +156,13 @@ export class AppController {
     this.unsubscribeStore = this.store.subscribe((snapshot) => this.renderer.renderProject(snapshot));
     this.unsubscribeMapClick = this.renderer.onMapClick((coordinate) => this.handleMapClick(coordinate));
     this.workspace = new WorkspaceController(this.store, this.renderer);
+    this.contextMenu = new ContextMenuController(requiredElement<HTMLElement>('context-menu'), this.geocoder, {
+      getProject: () => this.store.getSnapshot(),
+      onAddMarker: (coordinate) => this.showCreateMarkerModal(coordinate),
+      onFeatureAction: (action, featureId) => this.handleRendererAction(action, featureId),
+      onSelectFeature: (featureId) => this.workspace.selectFeature(featureId)
+    });
+    this.unsubscribeContextRequest = this.renderer.onContextRequest((request) => this.contextMenu.open(request));
     this.drawing.onCreated((draft) => this.handleDrawnFeature(draft));
     this.bindEvents();
     this.populateBasemaps();
@@ -166,6 +180,8 @@ export class AppController {
   destroy(): void {
     this.unsubscribeStore();
     this.unsubscribeMapClick();
+    this.unsubscribeContextRequest();
+    this.contextMenu.destroy();
     this.workspace.destroy();
     this.drawing.destroy();
     document.removeEventListener('keydown', this.keyboardHandler);
@@ -194,7 +210,7 @@ export class AppController {
 
   openMarkerEditor(featureId: string): void {
     const feature = this.findFeature(featureId);
-    if (!feature || !isMarkerFeature(feature)) return;
+    if (!feature || !isMarkerFeature(feature) || !this.canMutate(featureId, 'name')) return;
     this.markerToEditId = featureId;
     this.modalTitle.textContent = 'แก้ไขหมุด';
     this.pinLabelInput.value = feature.name;
@@ -207,9 +223,9 @@ export class AppController {
   }
 
   openTextEditor(featureId: string | null): void {
-    this.textToEditId = featureId;
     const feature = featureId ? this.findFeature(featureId) : null;
-    if (feature && !isTextFeature(feature)) return;
+    if (feature && (!isTextFeature(feature) || !this.canMutate(feature.id, 'content'))) return;
+    this.textToEditId = featureId;
     this.textModalTitle.textContent = feature ? 'แก้ไขข้อความ' : 'เพิ่มข้อความ';
     this.textLabelInput.value = feature?.properties.text ?? '';
     this.textActionsContainer.classList.toggle('hidden', !feature);
@@ -220,19 +236,20 @@ export class AppController {
 
   openShapeColorEditor(featureId: string): void {
     const feature = this.findFeature(featureId);
-    if (!feature || feature.type === 'marker' || feature.type === 'text') return;
+    if (!feature || feature.type === 'marker' || feature.type === 'text' || !this.canMutate(featureId, 'style')) return;
     this.shapeToEditId = featureId;
     this.setColorPreview(this.shapeColorSelector, feature.style.color ?? '#3388ff');
     this.shapeEditModal.classList.remove('hidden');
   }
 
   toggleShapeEdit(featureId: string): void {
+    if (!this.canMutate(featureId, 'geometry')) return;
     this.renderer.toggleFeatureEditable(featureId);
   }
 
   requestDelete(featureId: string): void {
     const feature = this.findFeature(featureId);
-    if (!feature) return;
+    if (!feature || !this.canMutate(featureId, 'delete')) return;
     const kind = feature.type === 'marker' ? 'marker' : feature.type === 'text' ? 'text' : 'shape';
     this.deleteTarget = { featureId, kind };
     this.deleteConfirmMessage.textContent = kind === 'marker' ? 'แน่ใจหรือไม่ว่าต้องการลบหมุดนี้?' : kind === 'text' ? 'แน่ใจหรือไม่ว่าต้องการลบข้อความนี้?' : 'แน่ใจหรือไม่ว่าต้องการลบรูปทรงนี้?';
@@ -241,9 +258,10 @@ export class AppController {
   }
 
   handleRendererAction(action: FeatureAction, featureId: string): void {
+    const feature = this.findFeature(featureId);
+    if (!feature) return;
+    this.workspace.selectFeature(featureId);
     if (action === 'edit') {
-      const feature = this.findFeature(featureId);
-      if (!feature) return;
       if (feature.type === 'marker') this.openMarkerEditor(featureId);
       else if (feature.type === 'text') this.openTextEditor(featureId);
       else this.toggleShapeEdit(featureId);
@@ -269,7 +287,10 @@ export class AppController {
     this.toggleLayersBtn.addEventListener('click', () => this.togglePanel(this.layerPanel, [this.toolPanel, this.searchPanel]));
     this.toggleToolPanelBtn.addEventListener('click', () => this.togglePanel(this.toolPanel, [this.layerPanel, this.searchPanel]));
     this.toggleSearchBtn.addEventListener('click', () => this.togglePanel(this.searchPanel, [this.toolPanel, this.layerPanel]));
-    this.addPinBtn.addEventListener('click', () => this.showCreateMarkerModal());
+    this.addPinBtn.addEventListener('click', () => {
+      if (this.markerPlacementActive) this.cancelMarkerPlacement();
+      else this.startMarkerPlacement();
+    });
     this.cancelPinBtn.addEventListener('click', () => this.hideAllModals());
     this.toggleInfoBtn.addEventListener('click', () => this.infoModal.classList.remove('hidden'));
     this.closeInfoBtn.addEventListener('click', () => this.infoModal.classList.add('hidden'));
@@ -325,7 +346,11 @@ export class AppController {
     const editable = this.isEditableTarget(event.target);
 
     if (event.key === 'Escape') {
-      if (this.activeDrawTool || this.isAddingText) {
+      if (this.contextMenu.isOpen()) {
+        this.contextMenu.close();
+      } else if (this.markerPlacementActive) {
+        this.cancelMarkerPlacement();
+      } else if (this.activeDrawTool || this.isAddingText) {
         this.stopAllDrawing();
         this.hideAllModals();
         this.store.cancelTransaction();
@@ -412,8 +437,12 @@ export class AppController {
   }
 
   private showCreateMarkerModal(coordinate?: Coordinate): void {
+    this.cancelMarkerPlacement();
     this.markerToEditId = null;
-    this.tempCoordinate = coordinate ?? null;
+    this.tempCoordinate = coordinate ? [...coordinate] as Coordinate : null;
+    this.pinCoordinatePreview.textContent = coordinate
+      ? `Location: ${coordinate[0].toFixed(6)}, ${coordinate[1].toFixed(6)}`
+      : 'Choose an exact point on the map before saving.';
     this.modalTitle.textContent = 'เพิ่มหมุดใหม่';
     this.pinLabelInput.value = '';
     this.radiusManagementSection.classList.add('hidden');
@@ -429,15 +458,18 @@ export class AppController {
     if (!name) return;
     if (this.markerToEditId) {
       const feature = this.findFeature(this.markerToEditId);
-      if (feature && isMarkerFeature(feature)) {
+      if (feature && isMarkerFeature(feature) && this.canMutate(feature.id, 'name')) {
         const next = clone(feature);
         next.name = name;
         next.style = { ...next.style, color: this.selectedColor };
-        this.store.updateFeature(next);
+        this.store.updateFeature(next, 'Edit marker', 'name');
       }
     } else {
-      const coordinate = this.tempCoordinate ?? this.renderer.getView().center;
-      this.store.addFeature({ id: createId('feature'), type: 'marker', name, groupId: null, visible: true, locked: false, geometry: { kind: 'point', coordinates: coordinate }, style: { color: this.selectedColor, symbolId: 'pin' }, properties: { radii: [] } });
+      const coordinate = this.tempCoordinate;
+      if (!coordinate) return;
+      const id = createId('feature');
+      this.store.addFeature({ id, type: 'marker', name, groupId: null, visible: true, locked: false, geometry: { kind: 'point', coordinates: coordinate }, style: { color: this.selectedColor, symbolId: 'pin' }, properties: { radii: [] } });
+      this.workspace.selectFeature(id);
     }
     this.hideAllModals();
   }
@@ -445,7 +477,7 @@ export class AppController {
   private openRadiusEditor(featureId: string | null): void {
     if (!featureId) return;
     const feature = this.findFeature(featureId);
-    if (!feature || !isMarkerFeature(feature)) return;
+    if (!feature || !isMarkerFeature(feature) || !this.canMutate(featureId, 'radius')) return;
     this.markerToEditId = featureId;
     this.pinModal.classList.add('hidden');
     this.resetRadiusForm();
@@ -500,7 +532,8 @@ export class AppController {
     if (!feature || !isMarkerFeature(feature)) return;
     const radius = feature.properties.radii.find((item) => item.id === button.dataset.id);
     if (button.dataset.action === 'delete') {
-      this.store.updateFeature({ ...clone(feature), properties: { radii: feature.properties.radii.filter((item) => item.id !== button.dataset.id) } });
+      if (!this.canMutate(feature.id, 'radius')) return;
+      this.store.updateFeature({ ...clone(feature), properties: { radii: feature.properties.radii.filter((item) => item.id !== button.dataset.id) } }, 'Delete marker radius', 'radius');
       this.renderRadiusList();
     } else if (button.dataset.action === 'edit' && radius) {
       this.radiusToEditId = radius.id;
@@ -524,7 +557,8 @@ export class AppController {
       const radius = next.properties.radii.find((item) => item.id === this.radiusToEditId);
       if (radius) { radius.distanceM = distanceM; radius.color = this.newRadiusColor; }
     } else next.properties.radii.push({ id: createId('radius'), distanceM, color: this.newRadiusColor, fillOpacity: 0.2 });
-    this.store.updateFeature(next);
+    if (!this.canMutate(feature.id, 'radius')) return;
+    this.store.updateFeature(next, 'Edit marker radius', 'radius');
     this.renderRadiusList();
     this.resetRadiusForm();
   }
@@ -556,19 +590,19 @@ export class AppController {
       this.setColorPreview(this.radiusColorSelector, color);
     } else if (target.type === 'edit-radius') {
       const feature = this.markerToEditId ? this.findFeature(this.markerToEditId) : null;
-      if (feature && isMarkerFeature(feature)) {
+      if (feature && isMarkerFeature(feature) && this.canMutate(feature.id, 'radius')) {
         const next = clone(feature);
         const radius = next.properties.radii.find((item) => item.id === target.radiusId);
         if (radius) radius.color = color;
-        this.store.updateFeature(next);
+        this.store.updateFeature(next, 'Edit marker radius color', 'radius');
         this.renderRadiusList();
       }
     } else if (target.type === 'shape') {
       const feature = this.findFeature(target.featureId);
-      if (feature && feature.type !== 'marker' && feature.type !== 'text') {
+      if (feature && feature.type !== 'marker' && feature.type !== 'text' && this.canMutate(feature.id, 'style')) {
         const next = clone(feature);
         next.style = { ...next.style, color, fillColor: color };
-        this.store.updateFeature(next);
+        this.store.updateFeature(next, 'Edit shape color', 'style');
         this.setColorPreview(this.shapeColorSelector, color);
       }
     }
@@ -596,14 +630,17 @@ export class AppController {
     this.shapeToEditId = null;
     this.textToEditId = null;
     this.deleteTarget = null;
+    this.tempCoordinate = null;
   }
 
   private confirmDelete(): void {
-    if (this.deleteTarget) this.store.removeFeature(this.deleteTarget.featureId);
+    if (this.deleteTarget && this.canMutate(this.deleteTarget.featureId, 'delete')) this.store.removeFeature(this.deleteTarget.featureId);
     this.hideAllModals();
   }
 
   private confirmDeleteAll(): void {
+    const project = this.store.getSnapshot();
+    if (project.features.some((feature) => !canMutateFeature(project, feature.id, 'delete'))) return;
     this.store.mutate((draft) => { draft.features = []; });
     this.renderer.selectFeature(null);
     this.deleteAllConfirmModal.classList.add('hidden');
@@ -743,15 +780,49 @@ export class AppController {
     document.getElementById('map')?.classList.add('cursor-text-tool');
   }
 
+  private startMarkerPlacement(): void {
+    this.stopAllDrawing();
+    this.markerPlacementActive = true;
+    this.tempCoordinate = null;
+    this.addPinBtn.classList.add('active');
+    this.addPinBtn.setAttribute('aria-pressed', 'true');
+    this.placementStatus.textContent = 'Click or tap the map to place a marker. Press Escape to cancel.';
+    this.placementStatus.classList.remove('hidden');
+    document.getElementById('map')?.classList.add('cursor-marker-placement');
+  }
+
+  private cancelMarkerPlacement(): void {
+    this.markerPlacementActive = false;
+    this.tempCoordinate = null;
+    this.addPinBtn.classList.remove('active');
+    this.addPinBtn.setAttribute('aria-pressed', 'false');
+    this.placementStatus.textContent = '';
+    this.placementStatus.classList.add('hidden');
+    document.getElementById('map')?.classList.remove('cursor-marker-placement');
+  }
+
   private stopAllDrawing(): void {
     this.drawing.cancel();
     this.activeDrawTool = null;
     this.isAddingText = false;
+    this.cancelMarkerPlacement();
     [this.drawPolylineBtn, this.drawPolygonBtn, this.drawCircleBtn, this.drawRectangleBtn, this.drawArrowBtn, this.addTextBtn].forEach((button) => button.classList.remove('active'));
     document.getElementById('map')?.classList.remove('cursor-text-tool');
   }
 
   private handleMapClick(coordinate: Coordinate): void {
+    this.contextMenu.close();
+    if (this.markerPlacementActive) {
+      this.markerPlacementActive = false;
+      this.addPinBtn.classList.remove('active');
+      this.addPinBtn.setAttribute('aria-pressed', 'false');
+      this.placementStatus.textContent = '';
+      this.placementStatus.classList.add('hidden');
+      document.getElementById('map')?.classList.remove('cursor-marker-placement');
+      this.tempCoordinate = coordinate;
+      this.showCreateMarkerModal(coordinate);
+      return;
+    }
     if (!this.isAddingText) return;
     this.tempCoordinate = coordinate;
     this.openTextEditor(null);
@@ -778,14 +849,15 @@ export class AppController {
     if (!text) return;
     if (this.textToEditId) {
       const feature = this.findFeature(this.textToEditId);
-      if (feature && isTextFeature(feature)) {
+      if (feature && isTextFeature(feature) && this.canMutate(feature.id, 'content')) {
         const next = clone(feature);
         next.name = text;
         next.properties.text = text;
-        this.store.updateFeature(next);
+        this.store.updateFeature(next, 'Edit text', 'content');
       }
     } else {
-      const coordinate = this.tempCoordinate ?? this.renderer.getView().center;
+      const coordinate = this.tempCoordinate;
+      if (!coordinate) return;
       this.store.addFeature({ id: createId('feature'), type: 'text', name: text, groupId: null, visible: true, locked: false, geometry: { kind: 'point', coordinates: coordinate }, style: { color: '#1f2937', fontSizePx: 14, fontWeight: 600, rotationDeg: 0, halo: true }, properties: { text } });
     }
     this.stopAllDrawing();
@@ -794,7 +866,7 @@ export class AppController {
 
   private openRotationEditor(featureId: string): void {
     const feature = this.findFeature(featureId);
-    if (!feature || !isTextFeature(feature)) return;
+    if (!feature || !isTextFeature(feature) || !this.canMutate(featureId, 'style')) return;
     this.textToEditId = featureId;
     const rotation = feature.style.rotationDeg ?? 0;
     this.rotationSlider.value = String(rotation);
@@ -808,14 +880,19 @@ export class AppController {
     if (!feature || !isTextFeature(feature)) return;
     const rotation = Number(this.rotationSlider.value);
     this.rotationValue.textContent = `${rotation}°`;
+    if (!this.canMutate(feature.id, 'style')) return;
     const next = clone(feature);
     next.style = { ...next.style, rotationDeg: rotation };
-    this.store.updateFeature(next);
+    this.store.updateFeature(next, 'Edit text rotation', 'style');
   }
 
   private findFeature(featureId: string | null): ProjectFeature | null {
     if (!featureId) return null;
     return this.store.getSnapshot().features.find((feature) => feature.id === featureId) ?? null;
+  }
+
+  private canMutate(featureId: string, mutationKind: Parameters<typeof canMutateFeature>[2]): boolean {
+    return canMutateFeature(this.store.getSnapshot(), featureId, mutationKind);
   }
 
   private buttonForTool(tool: DrawTool): HTMLButtonElement {

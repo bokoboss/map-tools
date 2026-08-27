@@ -1,4 +1,5 @@
-import type { GeocodingResult, GeocodingService } from './GeocodingService';
+import type { Coordinate } from '../domain/model';
+import type { GeocodingResult, GeocodingService, ReverseGeocodingResult } from './GeocodingService';
 
 interface NominatimResult {
   place_id?: number | string;
@@ -6,6 +7,10 @@ interface NominatimResult {
   lat?: string;
   lon?: string;
   boundingbox?: string[];
+}
+
+function validCoordinate(lon: number, lat: number): boolean {
+  return Number.isFinite(lon) && Number.isFinite(lat) && lon >= -180 && lon <= 180 && lat >= -90 && lat <= 90;
 }
 
 export class NominatimGeocoder implements GeocodingService {
@@ -29,10 +34,26 @@ export class NominatimGeocoder implements GeocodingService {
     const boundingBox = item.boundingbox?.map(Number);
     return [{
       id: String(item.place_id ?? `${lat},${lon},${index}`),
-      label: item.display_name ?? `${lat}, ${lon}`,
+      label: typeof item.display_name === 'string' ? item.display_name : `${lat}, ${lon}`,
       lat,
       lon,
       boundingBox: boundingBox?.length === 4 ? [boundingBox[0], boundingBox[1], boundingBox[2], boundingBox[3]] : undefined
     }];
+  }
+
+  async reverse(coordinate: Coordinate): Promise<ReverseGeocodingResult | null> {
+    const [lon, lat] = coordinate;
+    const url = `${this.endpoint}/reverse?format=jsonv2&lat=${encodeURIComponent(String(lat))}&lon=${encodeURIComponent(String(lon))}&accept-language=th`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    const data = await response.json() as unknown;
+    if (!data || typeof data !== 'object') return null;
+    const item = data as NominatimResult;
+    const resultLat = Number(item.lat);
+    const resultLon = Number(item.lon);
+    if (!validCoordinate(resultLon, resultLat)) return null;
+    const label = typeof item.display_name === 'string' ? item.display_name.trim() : '';
+    if (!label) return null;
+    return { label, coordinate: [resultLon, resultLat] };
   }
 }

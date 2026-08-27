@@ -49,6 +49,9 @@ test('group toggles preserve child flags and delete-by-ungrouping keeps features
   expect(afterToggle.visible).toBe(true);
   expect(afterToggle.locked).toBe(false);
 
+  await group.locator('[data-action="toggle-group-lock"]').click();
+  await expect(group.locator('[data-action="delete-group"]')).toBeEnabled();
+  await expect(group.locator('[data-action="delete-group"]')).toHaveAttribute('aria-disabled', 'false');
   await group.locator('[data-action="delete-group"]').click();
   const afterDelete = await page.evaluate(featureId => {
     const project = window.__mapToolsTest.captureProjectDocument();

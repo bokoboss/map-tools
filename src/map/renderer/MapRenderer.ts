@@ -12,6 +12,13 @@ export interface GeocodingPreview {
   coordinate: Coordinate;
 }
 
+export interface MapContextRequest {
+  featureId: FeatureId | null;
+  coordinate: Coordinate;
+  clientPoint: { x: number; y: number };
+  source: 'mouse' | 'keyboard' | 'touch';
+}
+
 export type FeatureChangePhase = 'update' | 'commit';
 
 export interface MapRenderer {
@@ -31,6 +38,7 @@ export interface MapRenderer {
   getBasemapOptions(): readonly BasemapOption[];
   onMapClick(listener: (coordinate: Coordinate) => void): () => void;
   onFeatureSelect(listener: (featureId: FeatureId | null) => void): () => void;
+  onContextRequest(listener: (request: MapContextRequest) => void): () => void;
   showSearchResult(preview: GeocodingPreview, onAdd: () => void): void;
   clearSearchResult(): void;
   destroy(): void;

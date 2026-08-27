@@ -1,4 +1,5 @@
 import { clone, createId, effectiveState } from '../domain/project';
+import { canMutateFeature, canMutateGroup } from '../domain/mutationPolicy';
 import type {
   FeatureId,
   FeatureStyle,
@@ -124,6 +125,7 @@ export class WorkspaceController {
     const source = this.findFeature(featureId);
     if (!source) return null;
     const snapshot = this.store.getSnapshot();
+    if (!canMutateFeature(snapshot, featureId, 'duplicate')) return null;
     const copy = clone(source);
     copy.id = createId('feature');
     copy.name = this.copyName(source.name, snapshot.features.map((feature) => feature.name));
@@ -137,8 +139,7 @@ export class WorkspaceController {
 
   deleteFeature(featureId: FeatureId): void {
     if (!this.findFeature(featureId)) return;
-    this.store.removeFeature(featureId);
-    if (this.state.getSelectedFeatureId() === featureId) this.clearSelection();
+    if (this.store.removeFeature(featureId) && this.state.getSelectedFeatureId() === featureId) this.clearSelection();
   }
 
   private render(): void {
@@ -178,7 +179,7 @@ export class WorkspaceController {
     const section = document.createElement('section');
     section.className = 'workspace-group';
     section.dataset.groupId = group.id;
-    const header = this.createGroupHeader(group, features.length);
+    const header = this.createGroupHeader(snapshot, group, features.length);
     section.appendChild(header);
     if (this.state.isGroupExpanded(group.id)) {
       const list = document.createElement('div');
@@ -206,7 +207,7 @@ export class WorkspaceController {
     this.objectList.appendChild(section);
   }
 
-  private createGroupHeader(group: ProjectGroup, count: number): HTMLElement {
+  private createGroupHeader(snapshot: ProjectDocumentV2, group: ProjectGroup, count: number): HTMLElement {
     const header = document.createElement('div');
     header.className = 'workspace-group-header';
     const toggle = appendButton(header, `${this.state.isGroupExpanded(group.id) ? 'Collapse' : 'Expand'} ${group.name}`, 'toggle-group', 'workspace-disclosure');
@@ -232,6 +233,11 @@ export class WorkspaceController {
     const remove = appendButton(actions, `Ungroup and remove ${group.name}`, 'delete-group');
     remove.dataset.groupId = group.id;
     remove.textContent = '×';
+    const canDelete = canMutateGroup(snapshot, group.id, 'delete');
+    remove.disabled = !canDelete;
+    remove.setAttribute('aria-disabled', String(!canDelete));
+    rename.disabled = group.locked;
+    rename.setAttribute('aria-disabled', String(group.locked));
     header.appendChild(actions);
     return header;
   }
@@ -279,6 +285,10 @@ export class WorkspaceController {
     const remove = appendButton(actions, `Delete ${feature.name}`, 'delete-feature');
     remove.dataset.featureId = feature.id;
     remove.textContent = '×';
+    duplicate.disabled = state.locked;
+    remove.disabled = state.locked;
+    duplicate.setAttribute('aria-disabled', String(state.locked));
+    remove.setAttribute('aria-disabled', String(state.locked));
     row.appendChild(actions);
     row.addEventListener('click', (event) => this.handleObjectClick(event, feature.id));
     row.addEventListener('keydown', (event) => {
@@ -302,14 +312,14 @@ export class WorkspaceController {
     }
     event.stopPropagation();
     if (action === 'select-feature' && featureId) this.selectFeature(featureId);
-    else if (action === 'toggle-feature-visibility' && featureId) this.updateFeature(featureId, (feature) => { feature.visible = !feature.visible; }, 'Toggle feature visibility');
-    else if (action === 'toggle-feature-lock' && featureId) this.updateFeature(featureId, (feature) => { feature.locked = !feature.locked; }, 'Toggle feature lock');
+    else if (action === 'toggle-feature-visibility' && featureId) this.updateFeature(featureId, (feature) => { feature.visible = !feature.visible; }, 'Toggle feature visibility', 'visibility');
+    else if (action === 'toggle-feature-lock' && featureId) this.updateFeature(featureId, (feature) => { feature.locked = !feature.locked; }, 'Toggle feature lock', 'lock');
     else if (action === 'duplicate-feature' && featureId) this.duplicateFeature(featureId);
     else if (action === 'zoom-feature' && featureId) { this.selectFeature(featureId); this.renderer.fitFeature(featureId); }
     else if (action === 'delete-feature' && featureId) this.deleteFeature(featureId);
     else if (action === 'toggle-group' && groupId) this.state.toggleGroup(groupId);
-    else if (action === 'toggle-group-visibility' && groupId) this.updateGroup(groupId, (group) => { group.visible = !group.visible; }, 'Toggle group visibility');
-    else if (action === 'toggle-group-lock' && groupId) this.updateGroup(groupId, (group) => { group.locked = !group.locked; }, 'Toggle group lock');
+    else if (action === 'toggle-group-visibility' && groupId) this.updateGroup(groupId, (group) => { group.visible = !group.visible; }, 'Toggle group visibility', 'visibility');
+    else if (action === 'toggle-group-lock' && groupId) this.updateGroup(groupId, (group) => { group.locked = !group.locked; }, 'Toggle group lock', 'lock');
     else if (action === 'rename-group' && groupId) this.renameGroup(groupId);
     else if (action === 'delete-group' && groupId) this.deleteGroup(groupId);
   }
@@ -334,12 +344,21 @@ export class WorkspaceController {
     type.textContent = featureTypeLabel(feature.type);
     heading.append(title, type);
     this.inspector.appendChild(heading);
+    const group = feature.groupId ? this.store.getSnapshot().groups.find((candidate) => candidate.id === feature.groupId) : null;
+    const effectivelyLocked = effectiveState(feature, group).locked;
+    if (effectivelyLocked) {
+      const lockNotice = document.createElement('p');
+      lockNotice.className = 'workspace-lock-notice';
+      lockNotice.textContent = group?.locked ? 'Locked by its group. Protected fields are read-only.' : 'Locked. Protected fields are read-only.';
+      lockNotice.setAttribute('role', 'status');
+      this.inspector.appendChild(lockNotice);
+    }
     const common = document.createElement('div');
     common.className = 'workspace-form-grid';
     common.appendChild(this.textField('Name', feature.name, 'inspector-name', (value) => this.updateFeature(feature.id, (next) => { next.name = value.trim() || feature.name; }, 'Rename feature')));
     common.appendChild(this.groupField(feature));
-    common.appendChild(this.checkboxField('Visible', feature.visible, 'inspector-visible', (checked) => this.updateFeature(feature.id, (next) => { next.visible = checked; }, 'Toggle feature visibility')));
-    common.appendChild(this.checkboxField('Locked', feature.locked, 'inspector-locked', (checked) => this.updateFeature(feature.id, (next) => { next.locked = checked; }, 'Toggle feature lock')));
+    common.appendChild(this.checkboxField('Visible', feature.visible, 'inspector-visible', (checked) => this.updateFeature(feature.id, (next) => { next.visible = checked; }, 'Toggle feature visibility', 'visibility')));
+    common.appendChild(this.checkboxField('Locked', feature.locked, 'inspector-locked', (checked) => this.updateFeature(feature.id, (next) => { next.locked = checked; }, 'Toggle feature lock', 'lock')));
     this.inspector.appendChild(common);
     const specific = document.createElement('div');
     specific.className = 'workspace-inspector-specific';
@@ -349,6 +368,17 @@ export class WorkspaceController {
     else if (feature.type === 'polygon' || feature.type === 'rectangle') this.renderAreaInspector(specific, feature);
     else this.renderLineInspector(specific, feature);
     this.inspector.appendChild(specific);
+    if (effectivelyLocked) this.disableProtectedInspectorControls();
+  }
+
+  private disableProtectedInspectorControls(): void {
+    const controls = this.inspector.querySelectorAll<HTMLElement>(
+      'input:not(#inspector-visible):not(#inspector-locked), textarea, select, button:not(#inspector-visible):not(#inspector-locked)'
+    );
+    controls.forEach((control) => {
+      (control as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | HTMLButtonElement).disabled = true;
+      control.setAttribute('aria-disabled', 'true');
+    });
   }
 
   private renderMarkerInspector(container: HTMLElement, feature: Extract<ProjectFeature, { type: 'marker' }>): void {
@@ -369,7 +399,7 @@ export class WorkspaceController {
       if (!Number.isFinite(distanceValue) || distanceValue < 0) return;
       const next = clone(feature);
       next.properties.radii.push({ id: createId('radius'), distanceM: distanceValue, color: color.input.value, fillOpacity: 0.2 });
-      this.store.updateFeature(next);
+      this.store.updateFeature(next, 'Add marker radius', 'radius');
     });
     add.append(distance.wrapper, color.wrapper, button);
     container.appendChild(add);
@@ -387,7 +417,7 @@ export class WorkspaceController {
     remove.addEventListener('click', () => {
       const current = this.findFeature(feature.id);
       if (!current || !isMarker(current)) return;
-      this.store.updateFeature({ ...clone(current), properties: { radii: current.properties.radii.filter((item) => item.id !== radius.id) } });
+      this.store.updateFeature({ ...clone(current), properties: { radii: current.properties.radii.filter((item) => item.id !== radius.id) } }, 'Delete marker radius', 'radius');
     });
     row.append(distance.wrapper, color.wrapper, remove);
     return row;
@@ -400,7 +430,7 @@ export class WorkspaceController {
     const input = document.createElement('textarea');
     input.value = feature.properties.text;
     input.rows = 2;
-    input.addEventListener('change', () => this.updateFeature(feature.id, (next) => { if (isText(next)) { next.properties.text = input.value; next.name = input.value.trim() || next.name; } }, 'Edit text'));
+    input.addEventListener('change', () => this.updateFeature(feature.id, (next) => { if (isText(next)) { next.properties.text = input.value; next.name = input.value.trim() || next.name; } }, 'Edit text', 'content'));
     text.appendChild(input);
     container.appendChild(text);
     container.appendChild(this.colorField('Text color', feature.style.color, '#1f2937', (value) => this.updateStyle(feature.id, { color: value }, 'Edit text color')));
@@ -432,7 +462,7 @@ export class WorkspaceController {
   }
 
   private renderCircleInspector(container: HTMLElement, feature: Extract<ProjectFeature, { type: 'circle' }>): void {
-    container.appendChild(this.numberField('Radius (m)', feature.geometry.radiusM, 'radiusM', (value) => this.updateFeature(feature.id, (next) => { if (next.type === 'circle') next.geometry.radiusM = value; }, 'Edit circle radius'), 0, 100000000));
+    container.appendChild(this.numberField('Radius (m)', feature.geometry.radiusM, 'radiusM', (value) => this.updateFeature(feature.id, (next) => { if (next.type === 'circle') next.geometry.radiusM = value; }, 'Edit circle radius', 'geometry'), 0, 100000000));
     container.appendChild(this.colorField('Stroke color', feature.style.color, '#f59e0b', (value) => this.updateStyle(feature.id, { color: value }, 'Edit circle stroke')));
     container.appendChild(this.colorField('Fill color', feature.style.fillColor ?? feature.style.color, '#f59e0b', (value) => this.updateStyle(feature.id, { fillColor: value }, 'Edit circle fill')));
     container.appendChild(this.numberField('Weight', feature.style.weightPx ?? 4, 'weightPx', (value) => this.updateStyle(feature.id, { weightPx: value }, 'Edit circle weight'), 0, 100));
@@ -456,7 +486,7 @@ export class WorkspaceController {
       select.appendChild(option);
     });
     select.value = feature.groupId ?? '';
-    select.addEventListener('change', () => this.updateFeature(feature.id, (next) => { next.groupId = select.value || null; }, 'Assign feature group'));
+    select.addEventListener('change', () => this.updateFeature(feature.id, (next) => { next.groupId = select.value || null; }, 'Assign feature group', 'group'));
     label.appendChild(select);
     return label;
   }
@@ -530,7 +560,7 @@ export class WorkspaceController {
     return { wrapper: label, input };
   }
 
-  private updateRadius(featureId: FeatureId, radiusId: string, update: (radius: RadiusRing) => void, _label: string): void {
+  private updateRadius(featureId: FeatureId, radiusId: string, update: (radius: RadiusRing) => void, label: string): void {
     const feature = this.findFeature(featureId);
     if (!feature || !isMarker(feature)) return;
     const next = clone(feature);
@@ -538,26 +568,27 @@ export class WorkspaceController {
     if (!radius) return;
     update(radius);
     if (!Number.isFinite(radius.distanceM) || radius.distanceM < 0) return;
-    this.store.updateFeature(next);
+    this.store.updateFeature(next, label, 'radius');
   }
 
   private updateStyle(featureId: FeatureId, style: Partial<FeatureStyle>, label: string): void {
-    this.updateFeature(featureId, (feature) => { feature.style = { ...feature.style, ...style }; }, label);
+    this.updateFeature(featureId, (feature) => { feature.style = { ...feature.style, ...style }; }, label, 'style');
   }
 
-  private updateFeature(featureId: FeatureId, update: (feature: ProjectFeature) => void, _label: string): void {
+  private updateFeature(featureId: FeatureId, update: (feature: ProjectFeature) => void, label: string, mutationKind: Parameters<typeof canMutateFeature>[2] = 'property'): void {
     const feature = this.findFeature(featureId);
     if (!feature) return;
     const next = clone(feature);
     update(next);
-    this.store.updateFeature(next);
+    this.store.updateFeature(next, label, mutationKind);
   }
 
-  private updateGroup(groupId: string, update: (group: ProjectGroup) => void, _label: string): void {
+  private updateGroup(groupId: string, update: (group: ProjectGroup) => void, label: string, mutationKind: 'visibility' | 'lock' | 'rename' | 'delete' | 'assignment'): void {
+    if (!canMutateGroup(this.store.getSnapshot(), groupId, mutationKind)) return;
     this.store.mutate((draft) => {
       const group = draft.groups.find((candidate) => candidate.id === groupId);
       if (group) update(group);
-    });
+    }, label);
   }
 
   private createGroup(): void {
@@ -574,10 +605,11 @@ export class WorkspaceController {
     if (!group) return;
     const name = window.prompt('Group name', group.name)?.trim();
     if (!name || name === group.name) return;
-    this.updateGroup(groupId, (next) => { next.name = name; }, 'Rename group');
+    this.updateGroup(groupId, (next) => { next.name = name; }, 'Rename group', 'rename');
   }
 
   private deleteGroup(groupId: string): void {
+    if (!canMutateGroup(this.store.getSnapshot(), groupId, 'delete')) return;
     this.store.mutate((draft) => {
       draft.features.forEach((feature) => {
         if (feature.groupId === groupId) feature.groupId = null;

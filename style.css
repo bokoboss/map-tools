@@ -314,6 +314,16 @@ body {
     color: #64748b;
     font-size: 0.75rem;
 }
+.workspace-lock-notice {
+    grid-column: 1 / -1;
+    margin: 0 0 8px;
+    border: 1px solid #fbbf24;
+    border-radius: 7px;
+    background: #fffbeb;
+    padding: 7px 8px;
+    color: #92400e;
+    font-size: 0.72rem;
+}
 .workspace-radius-row,
 .workspace-radius-add {
     display: contents;
@@ -550,6 +560,32 @@ body {
 .cursor-text-tool {
     cursor: text !important;
 }
+.cursor-marker-placement {
+    cursor: crosshair !important;
+}
+
+.placement-status {
+    position: fixed;
+    z-index: 1400;
+    bottom: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: calc(100vw - 32px);
+    border: 1px solid #93c5fd;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.94);
+    padding: 8px 14px;
+    color: white;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-align: center;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.25);
+}
+.pin-coordinate-preview {
+    margin: -8px 0 12px;
+    color: #64748b;
+    font-size: 0.75rem;
+}
 
 /* Custom DivIcon for text labels */
 .text-label-icon {
@@ -569,24 +605,71 @@ body {
 }
 
 /* Context Menu Styles */
-#context-menu a {
+#context-menu {
+    max-width: min(280px, calc(100vw - 16px));
+    max-height: calc(100vh - 16px);
+    overflow: auto;
+}
+#context-menu .context-menu-action {
     display: block;
+    width: 100%;
+    border: 0;
+    background: transparent;
     padding: 8px 16px;
     color: #374151; /* gray-700 */
     cursor: pointer;
+    font: inherit;
     font-size: 14px;
+    text-align: left;
     white-space: nowrap;
 }
-#context-menu a:hover {
+#context-menu .context-menu-action:hover:not(:disabled),
+#context-menu .context-menu-action:focus-visible:not(:disabled) {
     background-color: #f3f4f6; /* gray-100 */
+}
+#context-menu .context-menu-action:disabled {
+    cursor: not-allowed;
+    color: #9ca3af;
 }
 #context-menu hr {
     margin: 4px 0;
     border-color: #e5e7eb; /* gray-200 */
 }
-#context-menu .info-item {
+#context-menu .context-menu-info {
     padding: 8px 16px;
     font-size: 12px;
     color: #6b7280; /* gray-500 */
     cursor: default;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+#context-menu .context-menu-title {
+    color: #111827;
+    font-size: 13px;
+    font-weight: 700;
+}
+#context-menu .context-menu-locked {
+    color: #92400e;
+    font-weight: 600;
+}
+.popup-actions {
+    display: flex;
+    gap: 5px;
+    margin-top: 8px;
+}
+.popup-actions button {
+    border: 1px solid #cbd5e1;
+    border-radius: 5px;
+    background: white;
+    padding: 4px 6px;
+    color: #334155;
+    cursor: pointer;
+    font-size: 0.72rem;
+}
+.popup-actions button:hover:not(:disabled) {
+    background: #f1f5f9;
+}
+.popup-actions button:disabled {
+    cursor: not-allowed;
+    color: #94a3b8;
 }

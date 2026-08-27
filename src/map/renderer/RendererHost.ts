@@ -1,12 +1,14 @@
 import type { Coordinate, FeatureId, MapView, ProjectDocumentV2, ProjectFeature } from '../../domain/model';
-import type { BasemapOption, GeocodingPreview, MapRenderer } from './MapRenderer';
+import type { BasemapOption, GeocodingPreview, MapContextRequest, MapRenderer } from './MapRenderer';
 
 export class RendererHost implements MapRenderer {
   private current: MapRenderer;
   private readonly mapClickListeners = new Set<(coordinate: Coordinate) => void>();
   private readonly featureSelectListeners = new Set<(featureId: FeatureId | null) => void>();
+  private readonly contextRequestListeners = new Set<(request: MapContextRequest) => void>();
   private mapClickUnsubscribers = new Map<(coordinate: Coordinate) => void, () => void>();
   private featureSelectUnsubscribers = new Map<(featureId: FeatureId | null) => void, () => void>();
+  private contextRequestUnsubscribers = new Map<(request: MapContextRequest) => void, () => void>();
   private selectedFeatureId: FeatureId | null = null;
 
   constructor(renderer: MapRenderer) {
@@ -72,6 +74,15 @@ export class RendererHost implements MapRenderer {
       this.featureSelectListeners.delete(listener);
     };
   }
+  onContextRequest(listener: (request: MapContextRequest) => void): () => void {
+    this.contextRequestListeners.add(listener);
+    this.contextRequestUnsubscribers.set(listener, this.current.onContextRequest(listener));
+    return () => {
+      this.contextRequestUnsubscribers.get(listener)?.();
+      this.contextRequestUnsubscribers.delete(listener);
+      this.contextRequestListeners.delete(listener);
+    };
+  }
   showSearchResult(preview: GeocodingPreview, onAdd: () => void): void { this.current.showSearchResult(preview, onAdd); }
   clearSearchResult(): void { this.current.clearSearchResult(); }
   destroy(): void {
@@ -82,12 +93,15 @@ export class RendererHost implements MapRenderer {
   private attachListeners(): void {
     this.mapClickListeners.forEach((listener) => this.mapClickUnsubscribers.set(listener, this.current.onMapClick(listener)));
     this.featureSelectListeners.forEach((listener) => this.featureSelectUnsubscribers.set(listener, this.current.onFeatureSelect(listener)));
+    this.contextRequestListeners.forEach((listener) => this.contextRequestUnsubscribers.set(listener, this.current.onContextRequest(listener)));
   }
 
   private detachListeners(): void {
     this.mapClickUnsubscribers.forEach((unsubscribe) => unsubscribe());
     this.featureSelectUnsubscribers.forEach((unsubscribe) => unsubscribe());
+    this.contextRequestUnsubscribers.forEach((unsubscribe) => unsubscribe());
     this.mapClickUnsubscribers.clear();
     this.featureSelectUnsubscribers.clear();
+    this.contextRequestUnsubscribers.clear();
   }
 }
