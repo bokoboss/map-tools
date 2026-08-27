@@ -2,7 +2,7 @@
 
 Status: locally qualified; GitHub Actions control-plane status is not reported for the final PR evidence head.
 
-Date: 2026-08-26
+Date: 2026-08-27
 
 Issue: [#13 - B4 2D product acceptance and interaction parity](https://github.com/bokoboss/map-tools/issues/13)
 
@@ -15,8 +15,8 @@ Issue: [#13 - B4 2D product acceptance and interaction parity](https://github.co
 - Accepted Macro B runtime baseline: `501f996217857945e3008bae226ab7d19d5573e8`
 - B4.1 implementation checkpoint: `836f896e3082a058c0ee78701273f29967e8b6f2`
 - B4.1 checkpoint evidence commit: `2936e26364bfbd43878da5a3f3d4e82205f0e39f`
-- B4.2 implementation/remediation head: `c47c7249fb8c6e65aa196a7c05de6a4e46896126`
-- Qualification evidence commit before this final decision update: `c5bd71eb47ea14918fd000fdf115acfe838d0c49`
+- B4.2 implementation/remediation head: `dc9cdc6945f76930e7e88686eb0e33f8e7fd8a0f`
+- Previous qualification evidence commit: `c5bd71eb47ea14918fd000fdf115acfe838d0c49`
 - PR: [#16 - B4: qualify 2D product acceptance and interaction parity](https://github.com/bokoboss/map-tools/pull/16), open, against `main`, intentionally unmerged, and closing #13.
 - The final PR tip is the latest pushed commit on PR #16; its exact SHA is reported in the final handoff after this document update. No future SHA is pre-claimed in this document.
 
@@ -29,7 +29,7 @@ The B4.1 implementation and checkpoint were committed before B4.2 work began. B4
 | Clean dependency install | `npm ci` | PASS - 212 packages added, 213 audited, 0 vulnerabilities |
 | Lint | `npm run lint` | PASS |
 | Strict typecheck | `npm run typecheck` | PASS |
-| Unit/integration/architecture tests | `npm test` | PASS - 33/33 |
+| Unit/integration/architecture tests | `npm test` | PASS - 34/34 |
 | Production build | `npm run build` | PASS - Vite 6.4.3; 31 modules transformed |
 | Development browser suite | `npm run test:browser` | PASS - 41/41 cases reported `ok` |
 | Production-preview browser suite | `PLAYWRIGHT_USE_PREVIEW=1 npm run test:browser` | PASS - 41/41 cases reported `ok` |
@@ -49,7 +49,7 @@ The final browser suite contains the accepted 28-case browser baseline plus 13 B
 | J3 marker context actions | PASS | Real Chromium: stable-ID selection sync, context edit, radius management, delete, undo |
 | J4 text context actions | PASS | Real Chromium: create, right-click edit/rotate/delete, undo/redo, literal unsafe-looking text remains text |
 | J5 shape and arrow context actions | PASS | Real Chromium: toolbar polygon and arrow creation, context style/geometry routes, undo/redo, save/open; focused polyline/rectangle/circle context coverage |
-| J6 effective lock protection | PASS | Real Chromium: direct feature lock and parent-group lock across inspector, workspace, keyboard, context, popup, radius, duplicate, delete, move, geometry, and unlock routes |
+| J6 effective lock protection | PASS | Real Chromium: Cases A/B/C cover locked-parent blocking, individually locked-child blocking, and unlocked-group ungrouping with one-step undo/redo; direct feature lock and parent-group lock still cover inspector, workspace, keyboard, context, popup, radius, duplicate, delete, move, geometry, and unlock routes |
 | J7 context lifecycle/accessibility | PASS | Real Chromium: feature/background separation, replacement, normal-click close, Escape, viewport clamp, first-action focus, disabled locked actions |
 | J8 Help/discoverability | PASS | Real Chromium: Help covers navigation, basemap/search, Add Pin, right-click, Objects / Inspector, history, saved state, lock, touch, and file actions |
 
@@ -91,9 +91,17 @@ Effective lock is `group.locked || feature.locked`. The reusable policy is `canM
 | Feature group reassignment | Blocked | Disabled inspector select and store policy |
 | Feature delete, Delete/Backspace, duplicate | Blocked | Disabled workspace actions, keyboard guard, context/popup guard, and J6 |
 | Group rename | Blocked when the group itself is locked | Disabled group rename action and J6 |
-| Group delete-by-ungrouping | Allowed as the existing Macro B group-level command; child features and direct lock flags are preserved | Existing accepted group-delete characterization and explicit policy exception |
+| Group delete-by-ungrouping | Blocked when the group is locked or any child cannot mutate its group assignment; allowed only for an unlocked group whose children are all editable | Unit Case A/B/C coverage, J6 real-browser Case A/B/C coverage, and preserved Macro B undo/redo coverage |
 
-Blocked operations create no history entry, do not dirty the project, and do not leave a partial runtime edit. The group-delete exception is intentional compatibility with the accepted Macro B contract: it removes a group container and ungroups its children; it does not delete child feature data or overwrite child lock flags. Feature-level delete and reassignment remain blocked while effectively locked.
+Blocked operations create no history entry, do not dirty the project, and do not leave a partial runtime edit. Allowed group deletion removes the group container and ungroups its children as one undoable mutation; it does not delete child feature data or overwrite child lock flags. Group deletion is therefore treated as a group-assignment mutation for effective-lock policy purposes.
+
+### Group-delete regression cases
+
+| Case | Result |
+|---|---|
+| A - locked parent group | Delete control disabled with `aria-disabled="true"`; action attempt is blocked; group and child assignment remain; child lock flag, history, and dirty state are unchanged. |
+| B - unlocked group with individually locked child | Delete control disabled with `aria-disabled="true"`; action attempt is blocked; group and locked-child assignment remain; history and dirty state are unchanged. |
+| C - unlocked group with all children unlocked | Delete control enabled with `aria-disabled="false"`; one mutation removes the group and nulls child assignments without changing child lock flags; Undo restores the group/assignments and Redo ungroups again. |
 
 ## Reverse-geocode and transient-state evidence
 
@@ -115,13 +123,13 @@ The production browser suite also passed its no-test-globals check.
 
 The active workflow is `.github/workflows/ci.yml` and runs `npm ci`, lint, typecheck, unit tests, build, Chromium installation, and the browser suite. PR #16 is open, unmerged, and targets base SHA `dc5ed047a45ceaf7c651af8b2c7da3bdb4952a65`.
 
-For both the initial B4.2 implementation head `c47c7249fb8c6e65aa196a7c05de6a4e46896126` and the qualification evidence head `c5bd71eb47ea14918fd000fdf115acfe838d0c49`, GitHub reported zero workflow runs, zero check runs, and zero status contexts after polling. The workflow file is active and present on `main`, but no PR run was created or exposed for these heads. CI result: `NOT REPORTED` (not PASS and not FAIL). This is recorded as an infrastructure/control-plane limitation; it is not represented as a green CI result, and the complete local CI-equivalent gates are listed above.
+For the prior B4.2 implementation head `c47c7249fb8c6e65aa196a7c05de6a4e46896126` and prior qualification evidence head `c5bd71eb47ea14918fd000fdf115acfe838d0c49`, GitHub reported zero workflow runs, zero check runs, and zero status contexts after polling. The remediation implementation is `dc9cdc6945f76930e7e88686eb0e33f8e7fd8a0f`; the final PR tip is the latest pushed qualification commit and its exact SHA/run state is reported in the final handoff. The workflow file is active and present on `main`; CI is not pre-claimed here. CI result: `NOT REPORTED` unless an actual run is observed on the final PR tip. This is recorded as an infrastructure/control-plane limitation; it is not represented as a green CI result, and the complete local CI-equivalent gates are listed above.
 
 ## Known limitations and intentional v1 changes
 
 - Add Pin intentionally no longer creates a marker at the current map center; it now requires an explicit map click/tap placement before Save.
 - Desktop right-click is a shortcut; long-press context menus are not required. Touch users have toolbar placement plus Objects / Inspector management.
-- The existing Macro B group command deletes a group by ungrouping children, including while the group is locked; child feature records and direct lock flags are preserved.
+- Group deletion is blocked while the group is locked or while any child is effectively locked for group assignment; an unlocked group with all children editable still ungroups in one undoable mutation, preserving child records and direct lock flags.
 - Leaflet remains the only concrete renderer and Leaflet.draw remains the drawing engine; C4/MapLibre/3D is out of scope.
 - Basemap tiles and Nominatim remain external network dependencies and may be rate-limited or unavailable.
 - The production bundle retains the existing >500 kB minified-chunk warning.
