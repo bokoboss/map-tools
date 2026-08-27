@@ -1,6 +1,6 @@
 # B4 2D Product Acceptance Qualification
 
-Status: locally qualified; GitHub Actions control-plane status is not reported for the final PR evidence head.
+Status: locally qualified; GitHub Actions passed on the remediation/evidence head, with the final documentation tip reverified after its synchronize run.
 
 Date: 2026-08-27
 
@@ -17,8 +17,9 @@ Issue: [#13 - B4 2D product acceptance and interaction parity](https://github.co
 - B4.1 checkpoint evidence commit: `2936e26364bfbd43878da5a3f3d4e82205f0e39f`
 - B4.2 implementation/remediation head: `dc9cdc6945f76930e7e88686eb0e33f8e7fd8a0f`
 - Previous qualification evidence commit: `c5bd71eb47ea14918fd000fdf115acfe838d0c49`
+- B4.2 remediation/evidence head CI run: [33069873849](https://github.com/bokoboss/map-tools/actions/runs/33069873849) - `success` on `c38f402cf5655de3a819ef57934cd5c19687ede4`
 - PR: [#16 - B4: qualify 2D product acceptance and interaction parity](https://github.com/bokoboss/map-tools/pull/16), open, against `main`, intentionally unmerged, and closing #13.
-- The final PR tip is the latest pushed commit on PR #16; its exact SHA is reported in the final handoff after this document update. No future SHA is pre-claimed in this document.
+- The final PR tip is the latest pushed commit on PR #16; its exact SHA and final-head CI run are reported in the final handoff after this documentation update. No future SHA is pre-claimed in this document.
 
 The B4.1 implementation and checkpoint were committed before B4.2 work began. B4.2 implementation is separated from this qualification artifact so code provenance and qualification evidence remain independently auditable.
 
@@ -123,7 +124,7 @@ The production browser suite also passed its no-test-globals check.
 
 The active workflow is `.github/workflows/ci.yml` and runs `npm ci`, lint, typecheck, unit tests, build, Chromium installation, and the browser suite. PR #16 is open, unmerged, and targets base SHA `dc5ed047a45ceaf7c651af8b2c7da3bdb4952a65`.
 
-For the prior B4.2 implementation head `c47c7249fb8c6e65aa196a7c05de6a4e46896126` and prior qualification evidence head `c5bd71eb47ea14918fd000fdf115acfe838d0c49`, GitHub reported zero workflow runs, zero check runs, and zero status contexts after polling. The remediation implementation is `dc9cdc6945f76930e7e88686eb0e33f8e7fd8a0f`; the final PR tip is the latest pushed qualification commit and its exact SHA/run state is reported in the final handoff. The workflow file is active and present on `main`; CI is not pre-claimed here. CI result: `NOT REPORTED` unless an actual run is observed on the final PR tip. This is recorded as an infrastructure/control-plane limitation; it is not represented as a green CI result, and the complete local CI-equivalent gates are listed above.
+For the prior B4.2 implementation head `c47c7249fb8c6e65aa196a7c05de6a4e46896126` and prior qualification evidence head `c5bd71eb47ea14918fd000fdf115acfe838d0c49`, GitHub reported zero workflow runs, zero check runs, and zero status contexts after polling. The remediation/evidence head `c38f402cf5655de3a819ef57934cd5c19687ede4` then generated the required `pull_request` synchronize run [33069873849](https://github.com/bokoboss/map-tools/actions/runs/33069873849), whose `test` job completed successfully. This documentation-only update creates a new final PR tip and is reverified by its own synchronize run; the final handoff records that exact SHA and run. The workflow file is active and present on `main`, and the complete local CI-equivalent gates are listed above.
 
 ## Known limitations and intentional v1 changes
 
@@ -140,5 +141,5 @@ For the prior B4.2 implementation head `c47c7249fb8c6e65aa196a7c05de6a4e46896126
 
 Local product acceptance gates and all J1-J8 journeys pass.
 
-- `B4_2D_PRODUCT_ACCEPTANCE_QUALIFIED` - the required local product-acceptance, parity, lock, persistence, static, and real-browser evidence is green. GitHub Actions did not report a run for the final PR evidence head, so control-plane review must still confirm CI infrastructure/status before merge.
-- `BLOCK_C4_1` - C4.1 must not start because PR #16 is intentionally unmerged, B4 has not yet received control-plane acceptance, and the final GitHub Actions status is not reported. This remains true even though the local 2D product-acceptance evidence is green.
+- `B4_2D_PRODUCT_ACCEPTANCE_QUALIFIED` - the required local product-acceptance, parity, lock, persistence, static, real-browser, and GitHub Actions evidence is green; the final documentation tip is reverified before handoff.
+- `BLOCK_C4_1` - C4.1 must not start because PR #16 remains intentionally unmerged. This remains true even though B4 2D product acceptance is qualified.
