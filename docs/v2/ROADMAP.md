@@ -69,9 +69,11 @@ Macro B accepted via PR #12, squash merge:
 
 Macro B means the architecture/workspace is qualified. It does **not** by itself mean every historical 2D interaction has product acceptance.
 
-## 4. B4 — 2D Product Acceptance / Interaction Parity — MANDATORY NEXT GATE (`#13`)
+## 4. B4 — 2D Product Acceptance / Interaction Parity — COMPLETE (`#13`)
 
-### Why B4 exists
+Accepted via PR #16, squash merge `95e9928facd84d7e2e44b88f6680358c6af0da5e`.
+
+### Why B4 existed
 
 Post-Macro-B manual use found interaction parity regressions that the earlier characterization matrix did not cover adequately.
 
@@ -119,11 +121,11 @@ All must be true:
 - final qualification reports `B4_2D_PRODUCT_ACCEPTANCE_QUALIFIED`;
 - control-plane review accepts `READY_TO_START_C4_1`.
 
-**Do not start visible C4.1 implementation before this gate is accepted.**
+**B4 gate accepted. C4.1 implementation is now unblocked.**
 
 ## 5. Macro Phase C — Engineering Delivery Toolkit
 
-Macro C begins only after B4 product acceptance.
+Macro C is unblocked because B4 product acceptance is complete.
 
 The C work packages can then be prioritized by actual need rather than a rigid sequence.
 
@@ -169,17 +171,26 @@ Second wave:
 
 ### C4 — 2.5D/3D engineering visualization (`#10`)
 
-C4 architecture is technically possible after A3/B, but product sequencing requires B4 first.
+C4 architecture prerequisites and B4 product sequencing gate are complete.
 
-C4.1 first slice after B4:
+C4.1 current slice:
 
-- `2D | 3D` mode switch;
-- MapLibre renderer consuming the same canonical store/project;
-- pitch/bearing/reset controls;
-- supported building context;
-- basic project polygon extrusion;
-- project annotations aligned to the same coordinates;
-- switch back to 2D without semantic/project mutation.
+- `2D | 3D Preview` mode switch;
+- `maplibre-gl@6.6.0` renderer consuming the same canonical store/project;
+- renderer capabilities rather than concrete-type UI checks;
+- transient pitch/bearing/reset controls;
+- OpenFreeMap vector/building context;
+- every current semantic feature type rendered/identifiable;
+- transient polygon/rectangle preview extrusion only (no schema change);
+- geometry creation/editing remains 2D-only;
+- switch back to 2D without semantic/project mutation;
+- C4-J1..J8 product/browser qualification.
+
+Authoritative C4.1 docs:
+- `C4_1_3D_PREVIEW_SPEC.md`;
+- `C4_1_RENDERER_ARCHITECTURE.md`;
+- `C4_1_FEATURE_RENDERING_MATRIX.md`;
+- `CODEX_C4_1_PACKET.md`.
 
 Do not let C4 bypass the B4 context/lock/product interaction rules.
 
@@ -191,13 +202,17 @@ Completed:
 2. A3 — PR #11
 3. Macro B — PR #12
 
+Completed additionally:
+
+4. B4 — PR #16
+
 Next:
 
-4. **B4 — `codex/b4-2d-product-acceptance`**
+5. **C4.1 — `codex/c4-1-maplibre-3d-preview`**
 
 Then, according to need:
 
-5. C4.1 3D Preview, or C1/C2/C3 if a nearer engineering deliverable has higher value.
+6. C4.2 persistent elevation semantics or C1/C2/C3 according to product value.
 
 Avoid a broad `rewrite-v2` or combining B4 with 3D.
 
@@ -237,17 +252,17 @@ Before calling the 2D v2 experience product-accepted:
 - [x] responsive smoke matrix passes;
 - [x] production build passes;
 - [x] CI green for Macro B;
-- [ ] B4 right-click/context parity passes;
-- [ ] reverse-geocode context workflow passes;
-- [ ] exact toolbar/touch marker placement passes;
-- [ ] effective lock is enforced across every mutation surface;
-- [ ] B4 real product journeys pass;
-- [ ] Help matches real production interactions;
-- [ ] B4 qualification is accepted.
+- [x] B4 right-click/context parity passes;
+- [x] reverse-geocode context workflow passes;
+- [x] exact toolbar/touch marker placement passes;
+- [x] effective lock is enforced across every mutation surface;
+- [x] B4 real product journeys pass;
+- [x] Help matches real production interactions;
+- [x] B4 qualification is accepted.
 
 ## 9. Stop conditions
 
-Do not proceed to visible 3D or other major product expansion if any remain unresolved:
+Do not accept C4.1 or proceed to persistent 3D semantics if any remain unresolved:
 
 - a documented core 2D interaction is absent or misleading;
 - context/placement actions can create the wrong coordinate silently;
@@ -258,4 +273,4 @@ Do not proceed to visible 3D or other major product expansion if any remain unre
 - persistence requires renderer runtime objects;
 - core/browser test suite is unreliable.
 
-See `MASTER_EXECUTION_PLAN.md` for the three-macro-phase management view and `B4_2D_PRODUCT_ACCEPTANCE.md` for the immediate product gate.
+See `MASTER_EXECUTION_PLAN.md` for the three-macro-phase management view and the C4.1 focused specs for the current execution gate.
