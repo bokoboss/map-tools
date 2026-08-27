@@ -3,7 +3,7 @@ import { canMutateFeature, featureIsEffectivelyLocked } from '../../domain/mutat
 import type { Coordinate, FeatureId, FeatureStyle, MapView, ProjectDocumentV2, ProjectFeature } from '../../domain/model';
 import { clone, effectiveState } from '../../domain/project';
 import { formatArea, formatDistance, polygonAreaSquareMeters, polylineLength } from '../../measurement';
-import type { BasemapOption, FeatureAction, FeatureChangePhase, GeocodingPreview, MapContextRequest, MapRenderer } from '../renderer/MapRenderer';
+import { DEFAULT_BASEMAP_OPTIONS, type BasemapOption, type CameraPresentation, type FeatureAction, type FeatureChangePhase, type GeocodingPreview, type MapContextRequest, type MapRenderer, type RendererCapabilities } from '../renderer/MapRenderer';
 import { fromLeafletLatLng, toLeafletLatLng, toLeafletLatLngs } from './coordinates';
 
 type RuntimeLayer = L.Layer & {
@@ -35,15 +35,15 @@ export interface LeafletRendererCallbacks {
   onMapViewChanged?(view: MapView): void;
 }
 
-const BASEMAPS: readonly BasemapOption[] = [
-  { id: 'osm-standard', label: 'Standard map' },
-  { id: 'esri-imagery', label: 'Satellite imagery' },
-  { id: 'esri-hybrid', label: 'Satellite hybrid' },
-  { id: 'opentopomap', label: 'Topographic map' },
-  { id: 'osm-hot', label: 'Humanitarian (HOT)' },
-  { id: 'carto-light', label: 'Light map' },
-  { id: 'carto-dark', label: 'Dark map' }
-];
+const LEAFLET_CAPABILITIES: RendererCapabilities = {
+  mode: '2d',
+  drawing: true,
+  geometryEditing: true,
+  featureDragging: true,
+  basemapSwitching: true,
+  pitchBearing: false,
+  contextRequests: true
+};
 
 function escapeHtml(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
@@ -70,6 +70,7 @@ export class LeafletRenderer implements MapRenderer {
   private readonly markerLayers = new Map<string, RuntimeMarker>();
   private readonly drawnLayers = new Map<string, RuntimeLayer>();
   private readonly mapClickListeners = new Set<(coordinate: Coordinate) => void>();
+  private readonly mapViewListeners = new Set<(view: MapView) => void>();
   private readonly featureSelectListeners = new Set<(featureId: FeatureId | null) => void>();
   private readonly contextRequestListeners = new Set<(request: MapContextRequest) => void>();
   private readonly callbacks: LeafletRendererCallbacks;
@@ -120,8 +121,20 @@ export class LeafletRenderer implements MapRenderer {
         this.transientSearchNavigationActive = false;
         return;
       }
-      if (!this.suppressViewEvent) this.callbacks.onMapViewChanged?.(this.getView());
+      if (!this.suppressViewEvent) {
+        const view = this.getView();
+        this.callbacks.onMapViewChanged?.(view);
+        this.mapViewListeners.forEach((listener) => listener(view));
+      }
     });
+  }
+
+  getCapabilities(): RendererCapabilities { return LEAFLET_CAPABILITIES; }
+
+  getCameraPresentation(): CameraPresentation { return { pitchDeg: 0, bearingDeg: 0 }; }
+
+  setCameraPresentation(_presentation: CameraPresentation): void {
+    // Leaflet has no pitch/bearing camera. The renderer-neutral presentation remains zero.
   }
 
   getMapForDrawing(): L.Map {
@@ -231,11 +244,16 @@ export class LeafletRenderer implements MapRenderer {
   }
 
   getBasemapId(): string { return this.currentBasemapId; }
-  getBasemapOptions(): readonly BasemapOption[] { return BASEMAPS; }
+  getBasemapOptions(): readonly BasemapOption[] { return DEFAULT_BASEMAP_OPTIONS; }
 
   onMapClick(listener: (coordinate: Coordinate) => void): () => void {
     this.mapClickListeners.add(listener);
     return () => this.mapClickListeners.delete(listener);
+  }
+
+  onMapViewChanged(listener: (view: MapView) => void): () => void {
+    this.mapViewListeners.add(listener);
+    return () => this.mapViewListeners.delete(listener);
   }
 
   onFeatureSelect(listener: (featureId: FeatureId | null) => void): () => void {
@@ -246,6 +264,15 @@ export class LeafletRenderer implements MapRenderer {
   onContextRequest(listener: (request: MapContextRequest) => void): () => void {
     this.contextRequestListeners.add(listener);
     return () => this.contextRequestListeners.delete(listener);
+  }
+
+  cancelActiveInteractions(): void {
+    for (const layer of this.featureLayers.values()) this.editTarget(layer)?.editing?.disable();
+    this.activeFeatureInteractions.clear();
+  }
+
+  setPreviewExtrusions(_extrusions: Readonly<Record<string, number>>): void {
+    // Preview extrusion is a MapLibre-only transient projection.
   }
 
   showSearchResult(preview: GeocodingPreview, onAdd: () => void): void {

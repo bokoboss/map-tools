@@ -11,6 +11,20 @@
     <!-- The main container for the map -->
     <div id="map"></div>
 
+    <!-- Renderer mode is presentation state; it never becomes project data. -->
+    <div id="map-mode-controls" class="map-mode-controls" role="group" aria-label="Map renderer mode">
+        <div class="map-mode-buttons">
+            <button id="mode-2d-btn" type="button" class="map-mode-button is-active" aria-pressed="true">2D</button>
+            <button id="mode-3d-btn" type="button" class="map-mode-button" aria-pressed="false">3D Preview</button>
+        </div>
+        <div id="renderer-status" class="renderer-status" role="status" aria-live="polite">2D editing mode</div>
+        <div id="camera-controls" class="camera-controls hidden" aria-label="3D camera controls">
+            <button id="reset-north-btn" type="button">Reset north</button>
+            <button id="top-view-btn" type="button">Top view</button>
+        </div>
+        <p id="renderer-error" class="renderer-error hidden" role="alert"></p>
+    </div>
+
     <!-- Productive workspace: transient UI around the canonical project store. -->
     <button id="workspace-toggle-btn" class="workspace-toggle" type="button" aria-label="Show objects and inspector" title="Show objects and inspector">Objects</button>
     <aside id="workspace-panel" class="workspace-panel" aria-label="Objects and inspector">
@@ -346,6 +360,8 @@
                         <li>Use <strong>Objects / Inspector</strong> as the universal management path for selection, visibility, locking, properties, grouping, duplicate, zoom, and delete. Context menus are shortcuts, not the only route.</li>
                         <li>Undo and Redo restore project mutations. The workspace shows <strong>Saved</strong> or <strong>Unsaved changes</strong>; context menus, search previews, and placement mode are transient.</li>
                         <li>A locked feature or group remains selectable and visible, but protected edits, radius changes, reassignment, and deletion are disabled until it is legitimately unlocked. Visibility can still be toggled.</li>
+                        <li>Use <strong>3D Preview</strong> for a read-only pitched view. The same project, selection, locks, and WGS84 coordinates remain active; switch back to <strong>2D</strong> to draw or edit geometry.</li>
+                        <li>In 3D Preview, use <strong>Reset north</strong> or <strong>Top view</strong> for camera orientation. Camera pitch and bearing are transient presentation state and are not saved in project files.</li>
                         <li>Touch users can use Add Pin placement and the Objects / Inspector panel instead of right-click. Use Open / Save for project files and Export for a quick PNG.</li>
                     </ul>
                 </section>

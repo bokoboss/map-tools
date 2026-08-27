@@ -6,7 +6,7 @@ import { ProjectStore } from '../store/ProjectStore';
 import type { DrawTool, DrawnFeatureDraft, DrawingAdapter } from '../drawing/DrawingAdapter';
 import type { GeocodingResult, GeocodingService } from '../geocoding/GeocodingService';
 import { exportMapToPng } from '../export/QuickPngExporter';
-import type { FeatureAction, GeocodingPreview, MapRenderer } from '../map/renderer/MapRenderer';
+import type { FeatureAction, GeocodingPreview, MapRenderer, RendererCapabilities, RendererMode } from '../map/renderer/MapRenderer';
 import { ContextMenuController } from './ContextMenuController';
 import { WorkspaceController } from '../workspace/WorkspaceController';
 
@@ -17,6 +17,12 @@ type ColorPickerTarget =
   | { type: 'shape'; featureId: string };
 
 type DeleteTarget = { featureId: string; kind: 'marker' | 'text' | 'shape' } | null;
+
+export interface MapModeCommands {
+  switchTo(mode: RendererMode): boolean;
+  resetNorth(): void;
+  topView(): void;
+}
 
 function requiredElement<T extends Element>(id: string): T {
   const element = document.getElementById(id);
@@ -45,8 +51,11 @@ export class AppController {
   private readonly contextMenu: ContextMenuController;
   private readonly unsubscribeStore: () => void;
   private readonly unsubscribeMapClick: () => void;
+  private readonly unsubscribeMapView: () => void;
   private readonly unsubscribeContextRequest: () => void;
   private readonly keyboardHandler = (event: KeyboardEvent): void => this.handleKeyboard(event);
+  private unsubscribeDrawingCreated: () => void = () => undefined;
+  private modeController: MapModeCommands | null = null;
 
   private markerToEditId: string | null = null;
   private shapeToEditId: string | null = null;
@@ -146,6 +155,13 @@ export class AppController {
   private readonly closeRotateModalBtn = requiredElement<HTMLButtonElement>('close-rotate-modal-btn');
   private readonly toggleInfoBtn = requiredElement<HTMLButtonElement>('toggle-info-btn');
   private readonly infoModal = requiredElement<HTMLElement>('info-modal');
+  private readonly mode2dBtn = requiredElement<HTMLButtonElement>('mode-2d-btn');
+  private readonly mode3dBtn = requiredElement<HTMLButtonElement>('mode-3d-btn');
+  private readonly rendererStatus = requiredElement<HTMLElement>('renderer-status');
+  private readonly rendererError = requiredElement<HTMLElement>('renderer-error');
+  private readonly cameraControls = requiredElement<HTMLElement>('camera-controls');
+  private readonly resetNorthBtn = requiredElement<HTMLButtonElement>('reset-north-btn');
+  private readonly topViewBtn = requiredElement<HTMLButtonElement>('top-view-btn');
   private readonly closeInfoBtn = requiredElement<HTMLButtonElement>('close-info-btn');
 
   constructor(store: ProjectStore, renderer: MapRenderer, drawing: DrawingAdapter, geocoder: GeocodingService) {
@@ -155,6 +171,11 @@ export class AppController {
     this.geocoder = geocoder;
     this.unsubscribeStore = this.store.subscribe((snapshot) => this.renderer.renderProject(snapshot));
     this.unsubscribeMapClick = this.renderer.onMapClick((coordinate) => this.handleMapClick(coordinate));
+    this.unsubscribeMapView = this.renderer.onMapViewChanged((view) => {
+      const current = this.store.getSnapshot().mapView;
+      if (current.center[0] === view.center[0] && current.center[1] === view.center[1] && current.zoom === view.zoom) return;
+      this.store.setMapView({ center: view.center, zoom: view.zoom, basemapId: current.basemapId }, 'Update map view');
+    });
     this.workspace = new WorkspaceController(this.store, this.renderer);
     this.contextMenu = new ContextMenuController(requiredElement<HTMLElement>('context-menu'), this.geocoder, {
       getProject: () => this.store.getSnapshot(),
@@ -163,26 +184,80 @@ export class AppController {
       onSelectFeature: (featureId) => this.workspace.selectFeature(featureId)
     });
     this.unsubscribeContextRequest = this.renderer.onContextRequest((request) => this.contextMenu.open(request));
-    this.drawing.onCreated((draft) => this.handleDrawnFeature(draft));
+    this.unsubscribeDrawingCreated = this.drawing.onCreated((draft) => this.handleDrawnFeature(draft));
     this.bindEvents();
     this.populateBasemaps();
     this.populatePalette();
     this.renderer.renderProject(this.store.getSnapshot());
+    this.updateRendererCapabilities(this.renderer.getCapabilities());
     document.addEventListener('keydown', this.keyboardHandler);
   }
 
   setDrawingAdapter(drawing: DrawingAdapter): void {
+    this.unsubscribeDrawingCreated();
     this.drawing.destroy();
     this.drawing = drawing;
-    this.drawing.onCreated((draft) => this.handleDrawnFeature(draft));
+    this.unsubscribeDrawingCreated = this.drawing.onCreated((draft) => this.handleDrawnFeature(draft));
+  }
+
+  setModeController(controller: MapModeCommands): void {
+    this.modeController = controller;
+    this.updateRendererCapabilities(this.renderer.getCapabilities());
+  }
+
+  updateRendererCapabilities(capabilities: RendererCapabilities): void {
+    const is3d = capabilities.mode === '3d-preview';
+    this.mode2dBtn.setAttribute('aria-pressed', String(!is3d));
+    this.mode3dBtn.setAttribute('aria-pressed', String(is3d));
+    this.mode2dBtn.classList.toggle('is-active', !is3d);
+    this.mode3dBtn.classList.toggle('is-active', is3d);
+    this.rendererStatus.textContent = is3d
+      ? '3D Preview — geometry editing is disabled.'
+      : '2D editing mode';
+    this.cameraControls.classList.toggle('hidden', !capabilities.pitchBearing);
+    const drawingButtons = [this.drawPolylineBtn, this.drawPolygonBtn, this.drawCircleBtn, this.drawRectangleBtn, this.drawArrowBtn, this.addTextBtn, this.addPinBtn];
+    drawingButtons.forEach((button) => {
+      button.dataset.defaultTitle ??= button.title;
+      button.disabled = !capabilities.drawing;
+      button.title = capabilities.drawing ? (button.dataset.defaultTitle ?? '') : 'Switch to 2D to draw or edit geometry.';
+    });
+    this.toggleLayersBtn.disabled = !capabilities.basemapSwitching;
+    this.toggleLayersBtn.title = capabilities.basemapSwitching ? 'Change basemap' : 'Basemap selection is available in 2D only.';
+    this.layerOptionsContainer.querySelectorAll<HTMLButtonElement>('button').forEach((button) => {
+      button.dataset.defaultTitle ??= button.title;
+      button.disabled = !capabilities.basemapSwitching;
+      button.title = capabilities.basemapSwitching ? (button.dataset.defaultTitle ?? button.textContent ?? '') : 'Basemap selection is available in 2D only.';
+    });
+  }
+
+  showRendererMessage(message: string): void {
+    this.rendererError.textContent = message;
+    this.rendererError.classList.toggle('hidden', !message);
+  }
+
+  clearRendererMessage(): void {
+    this.showRendererMessage('');
+  }
+
+  prepareForRendererSwitch(): void {
+    this.contextMenu.close();
+    this.renderer.clearSearchResult();
+    this.searchResults.replaceChildren();
+    this.searchResultData = [];
+    this.renderer.cancelActiveInteractions();
+    this.stopAllDrawing();
+    this.store.cancelTransaction();
+    this.hideAllModals();
   }
 
   destroy(): void {
     this.unsubscribeStore();
     this.unsubscribeMapClick();
+    this.unsubscribeMapView();
     this.unsubscribeContextRequest();
     this.contextMenu.destroy();
     this.workspace.destroy();
+    this.unsubscribeDrawingCreated();
     this.drawing.destroy();
     document.removeEventListener('keydown', this.keyboardHandler);
   }
@@ -243,6 +318,10 @@ export class AppController {
   }
 
   toggleShapeEdit(featureId: string): void {
+    if (!this.renderer.getCapabilities().geometryEditing) {
+      this.showRendererMessage('Switch to 2D to edit geometry.');
+      return;
+    }
     if (!this.canMutate(featureId, 'geometry')) return;
     this.renderer.toggleFeatureEditable(featureId);
   }
@@ -261,6 +340,10 @@ export class AppController {
     const feature = this.findFeature(featureId);
     if (!feature) return;
     this.workspace.selectFeature(featureId);
+    if ((action === 'edit' || action === 'toggle-edit') && feature.type !== 'marker' && feature.type !== 'text' && !this.renderer.getCapabilities().geometryEditing) {
+      this.showRendererMessage('Switch to 2D to edit geometry.');
+      return;
+    }
     if (action === 'edit') {
       if (feature.type === 'marker') this.openMarkerEditor(featureId);
       else if (feature.type === 'text') this.openTextEditor(featureId);
@@ -294,6 +377,10 @@ export class AppController {
     this.cancelPinBtn.addEventListener('click', () => this.hideAllModals());
     this.toggleInfoBtn.addEventListener('click', () => this.infoModal.classList.remove('hidden'));
     this.closeInfoBtn.addEventListener('click', () => this.infoModal.classList.add('hidden'));
+    this.mode2dBtn.addEventListener('click', () => this.modeController?.switchTo('2d'));
+    this.mode3dBtn.addEventListener('click', () => this.modeController?.switchTo('3d-preview'));
+    this.resetNorthBtn.addEventListener('click', () => this.modeController?.resetNorth());
+    this.topViewBtn.addEventListener('click', () => this.modeController?.topView());
     this.savePinBtn.addEventListener('click', () => this.saveMarker());
     this.pinLabelInput.addEventListener('keyup', (event) => { if (event.key === 'Enter') { event.preventDefault(); this.saveMarker(); } });
     this.manageRadiusBtn.addEventListener('click', () => this.openRadiusEditor(this.markerToEditId));
@@ -410,7 +497,12 @@ export class AppController {
       button.type = 'button';
       button.className = 'w-full text-left p-2 rounded-md hover:bg-gray-100';
       button.textContent = option.label;
+      button.setAttribute('aria-label', `Use ${option.label}`);
       button.addEventListener('click', () => {
+        if (!this.renderer.getCapabilities().basemapSwitching) {
+          this.showRendererMessage('Basemap selection is available in 2D only.');
+          return;
+        }
         if (this.renderer.setBasemap(option.id)) {
           this.store.setMapView({ ...this.renderer.getView(), basemapId: option.id });
           this.layerPanel.classList.add('hidden');
@@ -765,6 +857,10 @@ export class AppController {
   }
 
   private startDrawing(tool: DrawTool): void {
+    if (!this.renderer.getCapabilities().drawing) {
+      this.showRendererMessage('Switch to 2D to draw or edit geometry.');
+      return;
+    }
     this.stopAllDrawing();
     this.activeDrawTool = tool;
     this.buttonForTool(tool).classList.add('active');
@@ -773,6 +869,10 @@ export class AppController {
   }
 
   private startTextCreation(): void {
+    if (!this.renderer.getCapabilities().drawing) {
+      this.showRendererMessage('Switch to 2D to draw or edit geometry.');
+      return;
+    }
     this.stopAllDrawing();
     this.isAddingText = true;
     this.addTextBtn.classList.add('active');
@@ -781,6 +881,10 @@ export class AppController {
   }
 
   private startMarkerPlacement(): void {
+    if (!this.renderer.getCapabilities().drawing) {
+      this.showRendererMessage('Switch to 2D to draw or edit geometry.');
+      return;
+    }
     this.stopAllDrawing();
     this.markerPlacementActive = true;
     this.tempCoordinate = null;
@@ -829,6 +933,10 @@ export class AppController {
   }
 
   private handleDrawnFeature(draft: DrawnFeatureDraft): void {
+    if (!this.renderer.getCapabilities().drawing) {
+      this.showRendererMessage('Switch to 2D to draw or edit geometry.');
+      return;
+    }
     const feature = {
       id: createId('feature'),
       type: draft.type,

@@ -40,6 +40,9 @@ test('renderer replacement preserves the canonical project snapshot', () => {
   let oldDestroyed = false;
   let renderedProjectId = '';
   const makeRenderer = (isOld: boolean): MapRenderer => ({
+    getCapabilities: () => ({ mode: '2d', drawing: true, geometryEditing: true, featureDragging: true, basemapSwitching: true, pitchBearing: false, contextRequests: true }),
+    getCameraPresentation: () => ({ pitchDeg: 0, bearingDeg: 0 }),
+    setCameraPresentation: () => undefined,
     setView: () => undefined,
     getView: () => project.mapView,
     renderProject: (candidate) => { renderedProjectId = candidate.project.id; },
@@ -49,13 +52,16 @@ test('renderer replacement preserves the canonical project snapshot', () => {
     setLabelsVisible: () => undefined,
     setFeatureEditable: () => undefined,
     toggleFeatureEditable: () => undefined,
+    setPreviewExtrusions: () => undefined,
     selectFeature: () => undefined,
     fitFeature: () => undefined,
     setBasemap: () => true,
     getBasemapId: () => project.mapView.basemapId,
     getBasemapOptions: () => [],
     onMapClick: () => () => undefined,
+    onMapViewChanged: () => () => undefined,
     onContextRequest: () => () => undefined,
+    cancelActiveInteractions: () => undefined,
     showSearchResult: () => undefined,
     clearSearchResult: () => undefined,
     onFeatureSelect: () => () => undefined,
