@@ -4,9 +4,11 @@ import type { BasemapOption, GeocodingPreview, MapContextRequest, MapRenderer } 
 export class RendererHost implements MapRenderer {
   private current: MapRenderer;
   private readonly mapClickListeners = new Set<(coordinate: Coordinate) => void>();
+  private readonly mapViewListeners = new Set<(view: MapView) => void>();
   private readonly featureSelectListeners = new Set<(featureId: FeatureId | null) => void>();
   private readonly contextRequestListeners = new Set<(request: MapContextRequest) => void>();
   private mapClickUnsubscribers = new Map<(coordinate: Coordinate) => void, () => void>();
+  private mapViewUnsubscribers = new Map<(view: MapView) => void, () => void>();
   private featureSelectUnsubscribers = new Map<(featureId: FeatureId | null) => void, () => void>();
   private contextRequestUnsubscribers = new Map<(request: MapContextRequest) => void, () => void>();
   private selectedFeatureId: FeatureId | null = null;
@@ -16,25 +18,17 @@ export class RendererHost implements MapRenderer {
   }
 
   replace(renderer: MapRenderer, project: ProjectDocumentV2): void {
-    const previous = this.current;
-    this.detachListeners();
-    this.current = renderer;
-    previous.destroy();
-    this.attachListeners();
-    this.current.renderProject(project);
-    this.current.selectFeature(this.selectedFeatureId);
+    this.replaceInternal(() => renderer, project);
   }
 
   replaceWith(factory: () => MapRenderer, project: ProjectDocumentV2): MapRenderer {
-    this.detachListeners();
-    this.current.destroy();
-    this.current = factory();
-    this.attachListeners();
-    this.current.renderProject(project);
-    this.current.selectFeature(this.selectedFeatureId);
-    return this.current;
+    return this.replaceInternal(factory, project);
   }
 
+  getCurrentRenderer(): MapRenderer { return this.current; }
+  getCapabilities() { return this.current.getCapabilities(); }
+  getCameraPresentation() { return this.current.getCameraPresentation(); }
+  setCameraPresentation(presentation: Parameters<MapRenderer['setCameraPresentation']>[0]): void { this.current.setCameraPresentation(presentation); }
   setView(view: MapView): void { this.current.setView(view); }
   getView(): MapView { return this.current.getView(); }
   renderProject(project: ProjectDocumentV2): void {
@@ -48,6 +42,7 @@ export class RendererHost implements MapRenderer {
   setLabelsVisible(visible: boolean): void { this.current.setLabelsVisible(visible); }
   setFeatureEditable(featureId: string, enabled: boolean): void { this.current.setFeatureEditable(featureId, enabled); }
   toggleFeatureEditable(featureId: string): void { this.current.toggleFeatureEditable(featureId); }
+  setPreviewExtrusions(extrusions: Readonly<Record<FeatureId, number>>): void { this.current.setPreviewExtrusions(extrusions); }
   selectFeature(featureId: string | null): void {
     this.selectedFeatureId = featureId;
     this.current.selectFeature(featureId);
@@ -63,6 +58,15 @@ export class RendererHost implements MapRenderer {
       this.mapClickUnsubscribers.get(listener)?.();
       this.mapClickUnsubscribers.delete(listener);
       this.mapClickListeners.delete(listener);
+    };
+  }
+  onMapViewChanged(listener: (view: MapView) => void): () => void {
+    this.mapViewListeners.add(listener);
+    this.mapViewUnsubscribers.set(listener, this.current.onMapViewChanged(listener));
+    return () => {
+      this.mapViewUnsubscribers.get(listener)?.();
+      this.mapViewUnsubscribers.delete(listener);
+      this.mapViewListeners.delete(listener);
     };
   }
   onFeatureSelect(listener: (featureId: FeatureId | null) => void): () => void {
@@ -85,6 +89,7 @@ export class RendererHost implements MapRenderer {
   }
   showSearchResult(preview: GeocodingPreview, onAdd: () => void): void { this.current.showSearchResult(preview, onAdd); }
   clearSearchResult(): void { this.current.clearSearchResult(); }
+  cancelActiveInteractions(): void { this.current.cancelActiveInteractions(); }
   destroy(): void {
     this.detachListeners();
     this.current.destroy();
@@ -92,16 +97,41 @@ export class RendererHost implements MapRenderer {
 
   private attachListeners(): void {
     this.mapClickListeners.forEach((listener) => this.mapClickUnsubscribers.set(listener, this.current.onMapClick(listener)));
+    this.mapViewListeners.forEach((listener) => this.mapViewUnsubscribers.set(listener, this.current.onMapViewChanged(listener)));
     this.featureSelectListeners.forEach((listener) => this.featureSelectUnsubscribers.set(listener, this.current.onFeatureSelect(listener)));
     this.contextRequestListeners.forEach((listener) => this.contextRequestUnsubscribers.set(listener, this.current.onContextRequest(listener)));
   }
 
   private detachListeners(): void {
     this.mapClickUnsubscribers.forEach((unsubscribe) => unsubscribe());
+    this.mapViewUnsubscribers.forEach((unsubscribe) => unsubscribe());
     this.featureSelectUnsubscribers.forEach((unsubscribe) => unsubscribe());
     this.contextRequestUnsubscribers.forEach((unsubscribe) => unsubscribe());
     this.mapClickUnsubscribers.clear();
+    this.mapViewUnsubscribers.clear();
     this.featureSelectUnsubscribers.clear();
     this.contextRequestUnsubscribers.clear();
+  }
+
+  private replaceInternal(factory: () => MapRenderer, project: ProjectDocumentV2): MapRenderer {
+    const previous = this.current;
+    // Construct and render the candidate while the current renderer is still alive.
+    // A constructor/style failure therefore leaves the current workspace usable.
+    const next = factory();
+    try {
+      this.detachListeners();
+      this.current = next;
+      this.attachListeners();
+      next.renderProject(project);
+      next.selectFeature(this.selectedFeatureId);
+    } catch (error) {
+      this.detachListeners();
+      try { next.destroy(); } catch { /* best-effort cleanup of a failed candidate */ }
+      this.current = previous;
+      this.attachListeners();
+      throw error;
+    }
+    previous.destroy();
+    return next;
   }
 }

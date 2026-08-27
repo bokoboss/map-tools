@@ -157,6 +157,9 @@ function fakeRenderer() {
   const context = new Set<(request: MapContextRequest) => void>();
   const view: MapView = { center: [100.5018, 13.7563], zoom: 13, basemapId: 'osm-standard' };
   const renderer: MapRenderer & { emitContext(request: MapContextRequest): void } = {
+    getCapabilities: () => ({ mode: '2d', drawing: true, geometryEditing: true, featureDragging: true, basemapSwitching: true, pitchBearing: false, contextRequests: true }),
+    getCameraPresentation: () => ({ pitchDeg: 0, bearingDeg: 0 }),
+    setCameraPresentation: () => undefined,
     setView: () => undefined,
     getView: () => view,
     renderProject: () => undefined,
@@ -166,14 +169,17 @@ function fakeRenderer() {
     setLabelsVisible: () => undefined,
     setFeatureEditable: () => undefined,
     toggleFeatureEditable: () => undefined,
+    setPreviewExtrusions: () => undefined,
     selectFeature: () => undefined,
     fitFeature: () => undefined,
     setBasemap: () => true,
     getBasemapId: () => view.basemapId,
     getBasemapOptions: () => [],
     onMapClick: (listener) => { mapClick.add(listener); return () => mapClick.delete(listener); },
+    onMapViewChanged: () => () => undefined,
     onFeatureSelect: (listener) => { featureSelect.add(listener); return () => featureSelect.delete(listener); },
     onContextRequest: (listener) => { context.add(listener); return () => context.delete(listener); },
+    cancelActiveInteractions: () => undefined,
     showSearchResult: () => undefined,
     clearSearchResult: () => undefined,
     destroy: () => undefined,
