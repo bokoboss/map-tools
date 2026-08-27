@@ -1,7 +1,7 @@
 # C4.1 — MapLibre 3D Preview Qualification
 
-Status: `C4_1_3D_PREVIEW_QUALIFIED`  
-C4.2 readiness: `READY_FOR_C4_2`  
+Status: `C4_1_3D_PREVIEW_QUALIFIED`
+C4.2 readiness: `READY_FOR_C4_2`
 Date: 2026-08-27
 
 ## Handoff identity
