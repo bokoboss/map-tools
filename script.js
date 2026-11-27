@@ -8,13 +8,19 @@ const canvasRenderer = L.canvas();
 const baseMaps = {
     "แผนที่ปกติ": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }),
     "ภาพถ่ายดาวเทียม": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: '© Esri' }),
+    // Hybrid = imagery + Esri reference layers (roads, places). CARTO label tiles now require an API key.
     "ภาพถ่ายดาวเทียม (Hybrid)": L.layerGroup([
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
             maxZoom: 19,
             attribution: 'Tiles &copy; Esri'
         }),
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; CARTO',
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {
+            maxZoom: 19,
+            attribution: 'Reference &copy; Esri',
+            pane: 'shadowPane'
+        }),
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+            maxZoom: 19,
             pane: 'shadowPane'
         })
     ]),
@@ -25,9 +31,8 @@ const baseMaps = {
     "แผนที่ Humanitarian (HOT)": L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
         maxZoom: 19,
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, Tiles style by <a href="https://www.hotosm.org/" target="_blank">Humanitarian OpenStreetMap Team</a> hosted by <a href="https://openstreetmap.fr/" target="_blank">OpenStreetMap France</a>'
-    }),
-    "แบบสบายตา (สว่าง)": L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 20, attribution: '© CARTO' }),
-    "แบบสบายตา (มืด)": L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 20, attribution: '© CARTO' })
+    })
+    // CARTO light/dark removed: their tiles now show "API KEY REQUIRED". Calm light/dark maps are vector styles below.
 };
 let currentLayer = baseMaps["แผนที่ปกติ"];
 currentLayer.addTo(map);
@@ -1626,10 +1631,17 @@ const MAPLIBRE_JS = 'https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.1/dist/maplib
 const MAPLIBRE_CSS = 'https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.1/dist/maplibre-gl.css';
 const MAPLIBRE_LEAFLET_JS = 'https://cdn.jsdelivr.net/npm/@maplibre/maplibre-gl-leaflet@0.1.4/leaflet-maplibre-gl.js';
 const OPENFREEMAP_ATTRIBUTION = '<a href="https://openfreemap.org" target="_blank">OpenFreeMap</a> © <a href="https://www.openmaptiles.org/" target="_blank">OpenMapTiles</a> Data from <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>';
+const VERSATILES_ATTRIBUTION = '<a href="https://versatiles.org" target="_blank">VersaTiles</a> © <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors';
+// Free, no API key. OpenFreeMap: openfreemap.org; VersaTiles: versatiles.org.
 const VECTOR_STYLES = {
-    'Vector · Liberty (คมชัด)': 'https://tiles.openfreemap.org/styles/liberty',
-    'Vector · Positron (สว่าง เรียบ)': 'https://tiles.openfreemap.org/styles/positron',
-    'Vector · Bright': 'https://tiles.openfreemap.org/styles/bright'
+    'Vector · Liberty (คมชัด)': { url: 'https://tiles.openfreemap.org/styles/liberty', attribution: OPENFREEMAP_ATTRIBUTION },
+    'Vector · Bright': { url: 'https://tiles.openfreemap.org/styles/bright', attribution: OPENFREEMAP_ATTRIBUTION },
+    'Vector · Colorful': { url: 'https://tiles.versatiles.org/assets/styles/colorful/style.json', attribution: VERSATILES_ATTRIBUTION },
+    'Vector · Positron (สว่าง สบายตา)': { url: 'https://tiles.openfreemap.org/styles/positron', attribution: OPENFREEMAP_ATTRIBUTION },
+    'Vector · Gray (เทา สบายตา)': { url: 'https://tiles.versatiles.org/assets/styles/gray/style.json', attribution: VERSATILES_ATTRIBUTION },
+    'Vector · Gray Dark (มืด เทา)': { url: 'https://tiles.versatiles.org/assets/styles/gray-dark/style.json', attribution: VERSATILES_ATTRIBUTION },
+    'Vector · Colorful Dark (มืด มีสี)': { url: 'https://tiles.versatiles.org/assets/styles/colorful-dark/style.json', attribution: VERSATILES_ATTRIBUTION }
+    // OpenFreeMap "dark" and "fiord" were tried and left out: labels too faint to read on count-station maps.
 };
 let mapLibreLoading = null;
 
@@ -1667,10 +1679,10 @@ function useThaiLabels(glMap) {
     });
 }
 
-function createVectorLayer(styleUrl) {
+function createVectorLayer(styleDef) {
     const layer = L.maplibreGL({
-        style: styleUrl,
-        attribution: OPENFREEMAP_ATTRIBUTION,
+        style: styleDef.url,
+        attribution: styleDef.attribution,
         // needed so the WebGL canvas can be copied into exported images
         canvasContextAttributes: { preserveDrawingBuffer: true },
         preserveDrawingBuffer: true,

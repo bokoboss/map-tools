@@ -17,7 +17,7 @@
 ## Technology stack
 - Static HTML/CSS/JavaScript, no build step; libraries pinned from CDNs
 - Map: Leaflet 1.9.4 + Leaflet.draw 1.0.4 (the only drawing/editing engine)
-- Optional vector basemaps: maplibre-gl 5.24.1 + @maplibre/maplibre-gl-leaflet 0.1.4, OpenFreeMap styles, loaded only when chosen
+- Optional vector basemaps: maplibre-gl 5.24.1 + @maplibre/maplibre-gl-leaflet 0.1.4, OpenFreeMap + VersaTiles styles (no API key), loaded only when chosen; no CARTO tiles (they now require a key)
 - Styling: Tailwind Play CDN + `style.css`; Sarabun font (Google Fonts, loaded with `crossorigin="anonymous"` so exports can embed it)
 - Export: modern-screenshot 4.7.0 for paper-size PNG; html2canvas 1.4.1 for screen export and as fallback
 - Colour picker: iro.js 5
@@ -78,7 +78,7 @@ npm test
 - Merging to `main` deploys to GitHub Pages directly.
 
 ## Current known limitations / risks
-- Depends on external CDNs, tile providers, OpenFreeMap and Nominatim; tests also need network access.
+- Depends on external CDNs, tile providers (OSM, Esri, OpenTopoMap, OSM France), OpenFreeMap, VersaTiles and Nominatim; tests also need network access.
 - Raster basemaps are upscaled in high-DPI exports; vector basemaps stay sharp.
 - Vector basemaps need WebGL.
 - Undo history is lost on reload.
