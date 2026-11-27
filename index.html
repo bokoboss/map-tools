@@ -22,7 +22,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
 
     <!-- Link to your custom CSS file -->
-    <link rel="stylesheet" href="style.css">
+    <!-- ?v= forces browsers to fetch new files after each release (GitHub Pages caches 10 minutes). Bump on every release. -->
+    <link rel="stylesheet" href="style.css?v=20261127-2">
 
 </head>
 <body class="overflow-hidden">
@@ -453,7 +454,7 @@
          (The former leaflet-geometryutil@0.10.1/dist/... URL does not exist and always returned 404.) -->
 
     <!-- Link to your custom JS file. 'defer' makes it run after the HTML is parsed. -->
-    <script src="script.js" defer></script>
+    <script src="script.js?v=20261127-2" defer></script>
 
 </body>
 </html>

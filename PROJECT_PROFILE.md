@@ -76,6 +76,7 @@ npm test
 ## Git / release policy
 - Bounded feature branches (`feat/…`, `fix/…`, `chore/…`), one objective per PR, merged by the owner.
 - Merging to `main` deploys to GitHub Pages directly.
+- GitHub Pages serves files with `Cache-Control: max-age=600`. Bump the `?v=` value on `style.css` and `script.js` in `index.html` in every PR that changes them, so returning visitors get matching files right after deploy.
 
 ## Current known limitations / risks
 - Depends on external CDNs, tile providers (OSM, Esri, OpenTopoMap, OSM France), OpenFreeMap, VersaTiles and Nominatim; tests also need network access.
