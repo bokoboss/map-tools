@@ -1722,22 +1722,66 @@ async function switchBaseMap(name) {
     currentBaseMapName = name;
     map.addLayer(currentLayer);
     if (currentLayer.isVectorBasemap) attachThaiLabels(currentLayer);
+    markCurrentBaseMap();
     getEl('map').classList.remove('light-mode', 'dark-mode');
 }
 
-function addBaseMapButton(name) {
-    const button = document.createElement('button');
-    button.className = 'w-full text-left p-2 rounded-md hover:bg-gray-100';
-    button.textContent = name;
-    button.onclick = () => switchBaseMap(name);
-    layerOptionsContainer.appendChild(button);
+// Basemap menu: grouped by use, preview thumbnail, current choice marked.
+// Keys stay the internal basemap names; labels are the short names shown in the menu.
+const BASEMAP_MENU = [
+    { group: 'แผนที่ทั่วไป', items: [
+        ['แผนที่ปกติ', 'OSM ปกติ', 'osm'],
+        ['Vector · Liberty (คมชัด)', 'Liberty', 'liberty', true],
+        ['Vector · Bright', 'Bright', 'bright', true],
+        ['Vector · Colorful', 'Colorful', 'colorful', true]
+    ] },
+    { group: 'สว่าง สบายตา (เหมาะกับรายงาน)', items: [
+        ['Vector · Positron (สว่าง สบายตา)', 'Positron', 'positron', true],
+        ['Vector · Gray (เทา สบายตา)', 'Gray', 'gray', true]
+    ] },
+    { group: 'มืด', items: [
+        ['Vector · Gray Dark (มืด เทา)', 'Gray Dark', 'gray-dark', true],
+        ['Vector · Colorful Dark (มืด มีสี)', 'Colorful Dark', 'colorful-dark', true]
+    ] },
+    { group: 'ภาพถ่ายดาวเทียม', items: [
+        ['ภาพถ่ายดาวเทียม', 'ดาวเทียม', 'satellite'],
+        ['ภาพถ่ายดาวเทียม (Hybrid)', 'ดาวเทียม + ชื่อถนน', 'hybrid']
+    ] },
+    { group: 'อื่นๆ', items: [
+        ['แผนที่ภูมิประเทศ', 'ภูมิประเทศ', 'topo'],
+        ['แผนที่ Humanitarian (HOT)', 'Humanitarian', 'hot']
+    ] }
+];
+
+function markCurrentBaseMap() {
+    layerOptionsContainer.querySelectorAll('[data-basemap]').forEach(btn => {
+        const on = btn.dataset.basemap === currentBaseMapName;
+        btn.setAttribute('aria-pressed', String(on));
+    });
 }
-Object.keys(baseMaps).forEach(addBaseMapButton);
-const vectorHeading = document.createElement('div');
-vectorHeading.className = 'px-2 pt-2 pb-1 text-xs text-gray-500 border-t mt-1';
-vectorHeading.textContent = 'แผนที่ vector (คมทุกระดับซูม ภาพส่งออกคมกว่า)';
-layerOptionsContainer.appendChild(vectorHeading);
-Object.keys(VECTOR_STYLES).forEach(addBaseMapButton);
+
+BASEMAP_MENU.forEach(({ group, items }) => {
+    const heading = document.createElement('p');
+    heading.className = 'basemap-group';
+    heading.textContent = group;
+    layerOptionsContainer.appendChild(heading);
+    const grid = document.createElement('div');
+    grid.className = 'basemap-grid';
+    items.forEach(([key, label, thumb, isVector]) => {
+        if (!baseMaps[key] && !VECTOR_STYLES[key]) return;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'basemap-option';
+        btn.dataset.basemap = key;
+        btn.innerHTML = `<img src="assets/basemaps/${thumb}.jpg" alt="" width="160" height="88" loading="lazy">` +
+            `<span class="basemap-name">${escapeHtml(label)}</span>` +
+            (isVector ? '<span class="basemap-meta">vector · คมทุกซูม</span>' : '');
+        btn.onclick = () => switchBaseMap(key);
+        grid.appendChild(btn);
+    });
+    layerOptionsContainer.appendChild(grid);
+});
+markCurrentBaseMap();
 
 // --- Initialize Color Picker ---
 colorPickerInstance = new iro.ColorPicker('#color-picker-widget', { width: 190, color: "#fff", borderWidth: 2, borderColor: "#ddd" });
@@ -2168,6 +2212,16 @@ document.addEventListener('keydown', (e) => {
     sync();
 })();
 
+// Layers and search buttons also report open/closed (no tooltip over an open menu).
+[[layerPanel, getEl('toggle-layers-btn')], [searchPanel, getEl('toggle-search-btn')]].forEach(([panel, btn]) => {
+    const sync = () => {
+        btn.setAttribute('aria-expanded', String(!panel.classList.contains('hidden')));
+        if (document.getElementById('empty-hint')) updateEmptyState();
+    };
+    new MutationObserver(sync).observe(panel, { attributes: true, attributeFilter: ['class'] });
+    sync();
+});
+
 // --- First-use guidance (shown only while the map has no pins or shapes) ---
 let emptyHintDismissed = false;
 const emptyHint = document.createElement('section');
@@ -2190,7 +2244,7 @@ function updateEmptyState() {
     const empty = markers.length === 0 && drawnItems.getLayers().length === 0;
     const bar = document.getElementById('quick-pin-bar');
     const quickOn = !!bar && !bar.classList.contains('hidden');
-    const toolsOpen = !toolPanel.classList.contains('hidden');
+    const toolsOpen = !toolPanel.classList.contains('hidden') || !layerPanel.classList.contains('hidden');
     emptyHint.classList.toggle('hidden', !empty || emptyHintDismissed || quickOn || toolsOpen);
 }
 getEl('empty-hint-close').addEventListener('click', () => { emptyHintDismissed = true; updateEmptyState(); });
