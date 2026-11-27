@@ -1265,7 +1265,9 @@ function waitForTiles(timeoutMs = 12000) {
     const start = Date.now();
     return new Promise(resolve => {
         (function check() {
-            const busy = layers.some(l => l.isLoading && l.isLoading());
+            const gl = currentLayer && currentLayer.isVectorBasemap && currentLayer.getMaplibreMap ? currentLayer.getMaplibreMap() : null;
+            const glBusy = gl ? !(gl.loaded() && gl.areTilesLoaded()) : false;
+            const busy = glBusy || layers.some(l => l.isLoading && l.isLoading());
             if (!busy || Date.now() - start > timeoutMs) setTimeout(resolve, 300);
             else setTimeout(check, 150);
         })();
@@ -1314,6 +1316,7 @@ async function runExport() {
     const extra = target ? makeExportControls({ title: exportTitle.value.trim(), north: exportNorth.checked }) : [];
 
     let fileName = 'map-capture.png';
+    let savedPixelRatio = null;
     try {
         let scale = 1;
         if (target) {
@@ -1328,6 +1331,17 @@ async function runExport() {
             scale = target.w / frameRect.width;
             const stamp = projectFileName().replace('map-project-', '').replace('.json', '');
             fileName = `map-${paperKey.slice(0, 2).toUpperCase()}${paperKey.endsWith('l') ? '-landscape' : '-portrait'}-${target.dpi}dpi-${stamp}.png`;
+        }
+        // Vector basemaps re-render at the export resolution, so map text stays sharp.
+        const gl = currentLayer && currentLayer.isVectorBasemap ? currentLayer.getMaplibreMap() : null;
+        if (gl && target) {
+            savedPixelRatio = gl.getPixelRatio();
+            await new Promise(resolve => {
+                const timer = setTimeout(resolve, 10000);
+                gl.once('idle', () => { clearTimeout(timer); resolve(); });
+                gl.setPixelRatio(Math.min(scale * (window.devicePixelRatio || 1), 8));
+                gl.triggerRepaint();
+            });
         }
         await waitForTiles();
         let blob = null;
@@ -1358,6 +1372,7 @@ async function runExport() {
         showToast('ส่งออกภาพไม่สำเร็จ ลองลดความละเอียดหรือเปลี่ยนแผนที่พื้นหลัง');
     } finally {
         extra.forEach(c => c.remove());
+        if (savedPixelRatio !== null && currentLayer.isVectorBasemap) currentLayer.getMaplibreMap().setPixelRatio(savedPixelRatio);
         if (target) {
             mapEl.setAttribute('style', savedStyle);
             map.invalidateSize({ pan: false });
@@ -1585,21 +1600,112 @@ map.on('draw:created', function (e) {
 map.on('draw:drawstop', stopAllDrawing);
 
 // --- Final UI Setup ---
-Object.keys(baseMaps).forEach(name => {
+// --- Vector basemaps (MapLibre, loaded only when first chosen) ---
+// Rendered inside Leaflet via maplibre-gl-leaflet, so every drawing tool keeps working.
+const MAPLIBRE_JS = 'https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.1/dist/maplibre-gl.js';
+const MAPLIBRE_CSS = 'https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.1/dist/maplibre-gl.css';
+const MAPLIBRE_LEAFLET_JS = 'https://cdn.jsdelivr.net/npm/@maplibre/maplibre-gl-leaflet@0.1.4/leaflet-maplibre-gl.js';
+const OPENFREEMAP_ATTRIBUTION = '<a href="https://openfreemap.org" target="_blank">OpenFreeMap</a> © <a href="https://www.openmaptiles.org/" target="_blank">OpenMapTiles</a> Data from <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>';
+const VECTOR_STYLES = {
+    'Vector · Liberty (คมชัด)': 'https://tiles.openfreemap.org/styles/liberty',
+    'Vector · Positron (สว่าง เรียบ)': 'https://tiles.openfreemap.org/styles/positron',
+    'Vector · Bright': 'https://tiles.openfreemap.org/styles/bright'
+};
+let mapLibreLoading = null;
+
+function loadScript(src) {
+    return new Promise((resolve, reject) => {
+        const el = document.createElement('script');
+        el.src = src;
+        el.onload = resolve;
+        el.onerror = () => reject(new Error(`โหลดไม่สำเร็จ: ${src}`));
+        document.head.appendChild(el);
+    });
+}
+
+function ensureMapLibre() {
+    if (window.maplibregl && L.maplibreGL) return Promise.resolve();
+    if (!mapLibreLoading) {
+        const css = document.createElement('link');
+        css.rel = 'stylesheet';
+        css.href = MAPLIBRE_CSS;
+        document.head.appendChild(css);
+        mapLibreLoading = loadScript(MAPLIBRE_JS).then(() => loadScript(MAPLIBRE_LEAFLET_JS));
+        mapLibreLoading.catch(() => { mapLibreLoading = null; });
+    }
+    return mapLibreLoading;
+}
+
+// Show Thai names (fallback: local name) instead of "Latin + Thai" on two lines.
+function useThaiLabels(glMap) {
+    glMap.getStyle().layers.forEach(layer => {
+        if (layer.type !== 'symbol') return;
+        const tf = glMap.getLayoutProperty(layer.id, 'text-field');
+        if (tf && JSON.stringify(tf).includes('name:latin')) {
+            glMap.setLayoutProperty(layer.id, 'text-field', ['coalesce', ['get', 'name:th'], ['get', 'name']]);
+        }
+    });
+}
+
+function createVectorLayer(styleUrl) {
+    const layer = L.maplibreGL({
+        style: styleUrl,
+        attribution: OPENFREEMAP_ATTRIBUTION,
+        // needed so the WebGL canvas can be copied into exported images
+        canvasContextAttributes: { preserveDrawingBuffer: true },
+        preserveDrawingBuffer: true,
+        maxCanvasSize: [16384, 16384]
+    });
+    layer.isVectorBasemap = true;
+    return layer;
+}
+
+function attachThaiLabels(layer) {
+    const gl = layer.getMaplibreMap && layer.getMaplibreMap();
+    if (!gl || gl._thaiLabelHook) return;
+    gl._thaiLabelHook = true;
+    const apply = () => { if (!gl._thaiLabelsApplied && gl.isStyleLoaded()) { gl._thaiLabelsApplied = true; useThaiLabels(gl); } };
+    gl.on('styledata', apply);
+    gl.on('load', apply);
+    apply();
+}
+
+let currentBaseMapName = 'แผนที่ปกติ';
+async function switchBaseMap(name) {
+    layerPanel.classList.add('hidden');
+    if (name === currentBaseMapName) return;
+    if (!baseMaps[name] && VECTOR_STYLES[name]) {
+        showToast('กำลังโหลดแผนที่ vector…');
+        try {
+            await ensureMapLibre();
+            baseMaps[name] = createVectorLayer(VECTOR_STYLES[name]);
+        } catch (err) {
+            console.error(err);
+            showToast('โหลดแผนที่ vector ไม่สำเร็จ ใช้แผนที่เดิมต่อ');
+            return;
+        }
+    }
+    map.removeLayer(currentLayer);
+    currentLayer = baseMaps[name];
+    currentBaseMapName = name;
+    map.addLayer(currentLayer);
+    if (currentLayer.isVectorBasemap) attachThaiLabels(currentLayer);
+    getEl('map').classList.remove('light-mode', 'dark-mode');
+}
+
+function addBaseMapButton(name) {
     const button = document.createElement('button');
     button.className = 'w-full text-left p-2 rounded-md hover:bg-gray-100';
     button.textContent = name;
-    button.onclick = () => { 
-        const mapContainer = getEl('map');
-        map.removeLayer(currentLayer); 
-        currentLayer = baseMaps[name]; 
-        map.addLayer(currentLayer); 
-        layerPanel.classList.add('hidden'); 
-        
-        mapContainer.classList.remove('light-mode', 'dark-mode');
-    };
+    button.onclick = () => switchBaseMap(name);
     layerOptionsContainer.appendChild(button);
-});
+}
+Object.keys(baseMaps).forEach(addBaseMapButton);
+const vectorHeading = document.createElement('div');
+vectorHeading.className = 'px-2 pt-2 pb-1 text-xs text-gray-500 border-t mt-1';
+vectorHeading.textContent = 'แผนที่ vector (คมทุกระดับซูม ภาพส่งออกคมกว่า)';
+layerOptionsContainer.appendChild(vectorHeading);
+Object.keys(VECTOR_STYLES).forEach(addBaseMapButton);
 
 // --- Initialize Color Picker ---
 colorPickerInstance = new iro.ColorPicker('#color-picker-widget', { width: 190, color: "#fff", borderWidth: 2, borderColor: "#ddd" });
