@@ -2195,11 +2195,13 @@ const DIALOG_INITIAL_FOCUS = {
 };
 const FOCUSABLE = 'button:not([disabled]), [href], input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 function visibleDialogs() {
+    // Only true modals trap focus; inspectors are non-modal side panels.
     return [...document.querySelectorAll('[id$="-modal"].fixed')].filter(m => !m.classList.contains('hidden'));
 }
-document.querySelectorAll('[id$="-modal"].fixed').forEach(modal => {
+document.querySelectorAll('[id$="-modal"]').forEach(modal => {
+    const isInspector = modal.classList.contains('inspector');
     modal.setAttribute('role', modal.id.includes('delete') ? 'alertdialog' : 'dialog');
-    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-modal', isInspector ? 'false' : 'true');
     const heading = modal.querySelector('h3');
     if (heading) { heading.id = heading.id || `${modal.id}-title`; modal.setAttribute('aria-labelledby', heading.id); }
     let wasOpen = !modal.classList.contains('hidden');
@@ -2235,6 +2237,57 @@ document.addEventListener('keydown', (e) => {
     if (!top.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
     else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+});
+
+// --- Inspector panels: map stays visible; show what is being edited and keep it in view ---
+const INSPECTOR_IDS = ['pin-modal', 'radius-modal', 'shape-edit-modal', 'text-modal', 'rotate-modal'];
+let inspectorGhost = null;
+let inspectorHighlight = null;
+
+function openInspector() {
+    return INSPECTOR_IDS.map(id => getEl(id)).find(el => el && !el.classList.contains('hidden')) || null;
+}
+
+function inspectorTarget() {
+    if (markerToEdit) return { latlng: markerToEdit.getLatLng(), layer: markerToEdit };
+    if (textMarkerToEdit) return { latlng: textMarkerToEdit.getLatLng(), layer: textMarkerToEdit };
+    if (shapeToEdit && shapeToEdit.getBounds) return { latlng: shapeToEdit.getBounds().getCenter(), layer: null };
+    if (tempPinLatLng && !getEl('pin-modal').classList.contains('hidden')) return { latlng: tempPinLatLng, layer: null, isNew: true };
+    return null;
+}
+
+function keepClearOfPanel(panel, latlng) {
+    const content = panel.querySelector('.modal-content') || panel;
+    const pr = content.getBoundingClientRect();
+    const mr = map.getContainer().getBoundingClientRect();
+    const pt = map.latLngToContainerPoint(latlng);
+    const x = mr.left + pt.x, y = mr.top + pt.y, pad = 48;
+    const narrow = window.matchMedia('(max-width: 640px)').matches;
+    if (narrow) {
+        if (y > pr.top - pad) map.panBy([0, y - (pr.top - pad) + (pr.top - mr.top) / 2 - pad], { animate: false });
+    } else if (x < pr.right + pad && y > pr.top - pad && y < pr.bottom + pad) {
+        map.panBy([-(pr.right + pad - x) - 40, 0], { animate: false });
+    }
+}
+
+function syncInspector() {
+    const panel = openInspector();
+    if (inspectorHighlight && inspectorHighlight._icon) inspectorHighlight._icon.classList.remove('is-editing');
+    inspectorHighlight = null;
+    if (inspectorGhost) { map.removeLayer(inspectorGhost); inspectorGhost = null; }
+    if (!panel) return;
+    const target = inspectorTarget();
+    if (!target) return;
+    if (target.layer && target.layer._icon) { target.layer._icon.classList.add('is-editing'); inspectorHighlight = target.layer; }
+    if (target.isNew) {
+        inspectorGhost = L.circleMarker(target.latlng, { radius: 14, color: '#2563eb', weight: 2, dashArray: '4 4', fillOpacity: 0.12, interactive: false }).addTo(map);
+    }
+    requestAnimationFrame(() => keepClearOfPanel(panel, target.latlng));
+}
+
+INSPECTOR_IDS.forEach(id => {
+    const el = getEl(id);
+    if (el) new MutationObserver(() => setTimeout(syncInspector, 0)).observe(el, { attributes: true, attributeFilter: ['class'] });
 });
 
 // --- Keyboard: Escape cancels the current tool, menu or dialog ---
