@@ -43,7 +43,7 @@ let newRadiusColor = '#3388ff';
 let colorPickerInstance = null;
 let colorPickerTarget = null;
 let searchResultMarker = null;
-let areLabelsVisible = false;
+let areLabelsVisible = true;
 const presetColors = ['#e11d48', '#f97316', '#f59e0b', '#84cc16', '#22c55e', '#10b981', '#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef'];
 // --- Survey point types ---
 // Codes are numbered per prefix; both intersection types share TMC numbering.
@@ -83,7 +83,7 @@ function surveySymbolSvg(type, size = 28) {
 }
 
 function createSurveyIcon(type) {
-    return L.divIcon({ html: `<div class="survey-marker-icon">${surveySymbolSvg(type)}</div>`, className: '', iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14] });
+    return L.divIcon({ html: `<div class="survey-marker-icon">${surveySymbolSvg(type)}</div>`, className: '', iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14], tooltipAnchor: [13, 0] });
 }
 
 function iconForMarkerData(type, color) {
@@ -185,14 +185,15 @@ function showToast(message) {
 function createMarkerIcon(color) {
     color = safeColor(color, '#2563eb');
     const svg = `<div class="custom-marker-icon"><svg width="25" height="41" viewBox="0 0 25 41" xmlns="http://www.w3.org/2000/svg"><path d="M12.5 0C5.596 0 0 5.596 0 12.5 0 19.404 12.5 41 12.5 41S25 19.404 25 12.5C25 5.596 19.404 0 12.5 0z" fill="${color}"/><circle cx="12.5" cy="12.5" r="4.5" fill="white"/></svg></div>`;
-    return L.divIcon({ html: svg, className: '', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -36] });
+    return L.divIcon({ html: svg, className: '', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -36], tooltipAnchor: [10, -27] });
 }
 
 function createPopupContent(marker) {
     const markerId = L.Util.stamp(marker);
     const code = marker.code ? `<b>${escapeHtml(marker.code)}</b>` : '';
     const label = marker.labelText ? (code ? ` ${escapeHtml(marker.labelText)}` : `<b>${escapeHtml(marker.labelText)}</b>`) : '';
-    return `<div class="editable-popup-text" ondblclick="startEdit(${markerId})">${code}${label}</div>`;
+    const body = code || label ? `${code}${label}` : `<i class="text-gray-500">${escapeHtml(SURVEY_TYPES[normalizeType(marker.pointType)].label)} (ไม่มีชื่อ)</i>`;
+    return `<div class="editable-popup-text" ondblclick="startEdit(${markerId})">${body}</div>`;
 }
 
 function formatArea(area) {
@@ -244,7 +245,7 @@ function drawCirclesForMarker(marker) {
             fillOpacity: 0.2
         }).addTo(marker.circleLayerGroup);
         // Hover shows which pin/ring this is; it is not part of the exported image.
-        ring.bindTooltip(`${escapeHtml(displayName(marker))} · ${radius.distance.toLocaleString()} ม.`, { sticky: true });
+        ring.bindTooltip(`${escapeHtml(displayName(marker) || SURVEY_TYPES[normalizeType(marker.pointType)].label)} · ${radius.distance.toLocaleString()} ม.`, { sticky: true });
     });
 }
 
@@ -276,6 +277,25 @@ function resetRadiusForm() {
     radiusFormTitle.innerText = 'เพิ่มวงรัศมีใหม่';
     addRadiusBtn.innerText = 'เพิ่ม';
     cancelEditRadiusBtn.classList.add('hidden');
+}
+
+// --- Permanent labels beside pins (code bold + name); hidden with the label toggle ---
+function refreshMarkerLabel(marker) {
+    marker.unbindTooltip();
+    const code = marker.code ? `<b>${escapeHtml(marker.code)}</b>` : '';
+    const name = marker.labelText ? escapeHtml(marker.labelText) : '';
+    if (!code && !name) return;
+    marker.bindTooltip(code && name ? `${code} ${name}` : (code || name), {
+        permanent: true, direction: 'right', className: 'pin-label', interactive: false
+    });
+}
+
+function applyLabelVisibility() {
+    map.getContainer().classList.toggle('labels-hidden', !areLabelsVisible);
+    toggleLabelsIcon.innerHTML = areLabelsVisible
+        ? `<path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />`
+        : `<path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />`;
+    toggleLabelsBtn.title = areLabelsVisible ? 'ซ่อนป้ายชื่อหมุด' : 'แสดงป้ายชื่อหมุด';
 }
 
 // --- Point type UI ---
@@ -364,10 +384,6 @@ savePinBtn.addEventListener('click', function() {
     const labelText = pinLabelInput.value.trim();
     const pointType = normalizeType(pinTypeSelect.value);
     const code = pointType === 'general' ? '' : pinCodeInput.value.trim();
-    if (!labelText && !code) {
-        showToast(pointType === 'general' ? 'กรุณาใส่ข้อความของหมุด' : 'กรุณาใส่รหัสจุดหรือชื่อ');
-        return;
-    }
     const markerColor = pointType === 'general' ? selectedColor : SURVEY_TYPES[pointType].color;
 
     if (markerToEdit) {
@@ -378,6 +394,7 @@ savePinBtn.addEventListener('click', function() {
         markerToEdit.code = code;
         markerToEdit.setIcon(iconForMarkerData(pointType, markerColor));
         markerToEdit.setPopupContent(createPopupContent(markerToEdit));
+        refreshMarkerLabel(markerToEdit);
         drawCirclesForMarker(markerToEdit);
     } else {
         // Creating a new marker
@@ -506,18 +523,11 @@ confirmDeleteAllBtn.addEventListener('click', () => {
 });
 
 pinLabelInput.addEventListener('keyup', e => { if (e.key === 'Enter') { e.preventDefault(); savePinBtn.click(); } });
+pinLabelInput.placeholder = 'ไม่บังคับ';
 
 toggleLabelsBtn.addEventListener('click', () => {
     areLabelsVisible = !areLabelsVisible;
-    if (areLabelsVisible) {
-        markers.forEach(marker => marker.openPopup());
-        toggleLabelsIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />`;
-        toggleLabelsBtn.title = "ซ่อนข้อความ";
-    } else {
-        markers.forEach(marker => marker.closePopup());
-        toggleLabelsIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />`;
-        toggleLabelsBtn.title = "แสดงข้อความ";
-    }
+    applyLabelVisibility();
 });
 
 // --- Color Picker Logic ---
@@ -900,6 +910,7 @@ function createMarkerFromData(data) {
     newMarker.radii = data.radii || [];
     newMarker.circleLayerGroup = L.layerGroup().addTo(map);
     newMarker.bindPopup(createPopupContent(newMarker), { autoClose: false, closeButton: false });
+    refreshMarkerLabel(newMarker);
     
     newMarker.on('dragstart', e => e.target.closePopup());
     newMarker.on('drag', e => drawCirclesForMarker(e.target));
@@ -1179,6 +1190,7 @@ function restoreAutosave() {
 exportImageBtn.addEventListener('click', () => {
     loadingOverlay.classList.remove('hidden');
     controlsContainer.classList.add('hidden');
+    document.body.classList.add('exporting');
     
     setTimeout(() => {
         html2canvas(document.getElementById('map'), {
@@ -1192,6 +1204,7 @@ exportImageBtn.addEventListener('click', () => {
         }).finally(() => {
             loadingOverlay.classList.add('hidden');
             controlsContainer.classList.remove('hidden');
+            document.body.classList.remove('exporting');
         });
     }, 500);
 });
@@ -1276,6 +1289,7 @@ function stopAllDrawing() {
     [drawPolylineBtn, drawPolygonBtn, drawCircleBtn, drawRectangleBtn, drawArrowBtn, addTextBtn].forEach(btn => btn.classList.remove('active'));
     isAddingText = false;
     L.DomUtil.removeClass(map._container, 'cursor-text-tool');
+    if (typeof stopQuickPin === 'function') stopQuickPin();
 }
 
 function startDrawing(button, drawer) {
@@ -1516,6 +1530,148 @@ function exportPointsCsv() {
 }
 exportCsvBtn.addEventListener('click', exportPointsCsv);
 
+// --- Quick pin mode: click the map repeatedly to drop pins of one type ---
+let quickPinActive = false;
+const quickBar = document.createElement('div');
+quickBar.id = 'quick-pin-bar';
+quickBar.className = 'hidden';
+quickBar.setAttribute('role', 'toolbar');
+quickBar.innerHTML = `
+    <span class="quick-pin-title">ปักหมุดเร็ว</span>
+    <label class="sr-only" for="quick-pin-type">ประเภทจุด</label>
+    <select id="quick-pin-type"></select>
+    <span id="quick-pin-next" class="quick-pin-next"></span>
+    <button id="quick-pin-done" type="button">เสร็จ</button>`;
+document.body.appendChild(quickBar);
+const quickPinType = getEl('quick-pin-type'), quickPinNext = getEl('quick-pin-next'), quickPinDone = getEl('quick-pin-done');
+SURVEY_TYPE_ORDER.forEach(key => {
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = SURVEY_TYPES[key].label;
+    quickPinType.appendChild(opt);
+});
+
+function updateQuickNext() {
+    const type = normalizeType(quickPinType.value);
+    const code = nextCode(SURVEY_TYPES[type].prefix);
+    quickPinNext.textContent = code ? `ถัดไป: ${code}` : 'คลิกบนแผนที่เพื่อวางหมุด';
+}
+
+function startQuickPin() {
+    stopAllDrawing();
+    hideContextMenu();
+    quickPinActive = true;
+    quickPinType.value = lastPointType;
+    updateQuickNext();
+    quickBar.classList.remove('hidden');
+    quickPinBtn.classList.add('active');
+    L.DomUtil.addClass(map.getContainer(), 'cursor-quick-pin');
+    toolPanel.classList.add('hidden');
+}
+
+function stopQuickPin() {
+    if (!quickPinActive) return;
+    quickPinActive = false;
+    quickBar.classList.add('hidden');
+    quickPinBtn.classList.remove('active');
+    L.DomUtil.removeClass(map.getContainer(), 'cursor-quick-pin');
+}
+
+quickPinType.addEventListener('change', () => { lastPointType = normalizeType(quickPinType.value); updateQuickNext(); });
+quickPinDone.addEventListener('click', stopQuickPin);
+
+map.on('click', function(e) {
+    if (!quickPinActive) return;
+    const type = normalizeType(quickPinType.value);
+    createMarkerFromData({
+        labelText: '',
+        markerColor: type === 'general' ? selectedColor : SURVEY_TYPES[type].color,
+        pointType: type,
+        code: nextCode(SURVEY_TYPES[type].prefix),
+        latlng: e.latlng,
+        radii: []
+    });
+    lastPointType = type;
+    updateLegend();
+    updateQuickNext();
+    clearTimeout(historyTimer);
+    recordHistory(); // each quick pin is its own undo step
+});
+
+const quickPinBtn = getEl('quick-pin-btn');
+quickPinBtn.addEventListener('click', () => (quickPinActive ? stopQuickPin() : startQuickPin()));
+
+// --- Undo / Redo (snapshot history of the whole project) ---
+const HISTORY_LIMIT = 100;
+let historyStack = [];
+let historyIndex = -1;
+let historyTimer = null;
+const undoBtn = getEl('undo-btn'), redoBtn = getEl('redo-btn');
+
+function projectSnapshot() {
+    const data = serializeProject();
+    return JSON.stringify({ markers: data.markers, shapes: data.shapes });
+}
+
+function updateHistoryButtons() {
+    undoBtn.disabled = historyIndex <= 0;
+    redoBtn.disabled = historyIndex >= historyStack.length - 1;
+}
+
+function recordHistory() {
+    historyTimer = null;
+    const snap = projectSnapshot();
+    if (historyStack[historyIndex] === snap) return;
+    historyStack = historyStack.slice(0, historyIndex + 1);
+    historyStack.push(snap);
+    if (historyStack.length > HISTORY_LIMIT) historyStack.shift();
+    historyIndex = historyStack.length - 1;
+    updateHistoryButtons();
+}
+
+function recordHistorySoon() {
+    clearTimeout(historyTimer);
+    historyTimer = setTimeout(recordHistory, 120);
+}
+
+function restoreHistory(index) {
+    if (index < 0 || index >= historyStack.length) return;
+    clearTimeout(historyTimer);
+    historyTimer = null;
+    stopAllDrawing();
+    hideAllModals();
+    hideContextMenu();
+    historyIndex = index;
+    loadProject(JSON.parse(historyStack[index]));
+    // Store the re-serialised form so a no-op comparison never discards the redo stack.
+    historyStack[index] = projectSnapshot();
+    updateHistoryButtons();
+    if (quickPinActive) updateQuickNext();
+}
+
+function undo() {
+    recordHistory(); // capture any change not yet recorded
+    restoreHistory(historyIndex - 1);
+}
+function redo() { restoreHistory(historyIndex + 1); }
+
+undoBtn.addEventListener('click', undo);
+redoBtn.addEventListener('click', redo);
+
+// Any finished interaction may have changed the project; the snapshot comparison
+// decides whether a history step is actually recorded.
+['mouseup', 'touchend', 'keyup', 'change'].forEach(evt => document.addEventListener(evt, recordHistorySoon, true));
+map.on('draw:created draw:edited draw:deleted', recordHistorySoon);
+
+document.addEventListener('keydown', (e) => {
+    const target = e.target;
+    const typing = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable);
+    if (typing || !(e.ctrlKey || e.metaKey)) return;
+    const key = e.key.toLowerCase();
+    if (key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+    else if ((key === 'z' && e.shiftKey) || key === 'y') { e.preventDefault(); redo(); }
+});
+
 // --- Keyboard: Escape cancels the current tool, menu or dialog ---
 document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
@@ -1527,6 +1683,8 @@ document.addEventListener('keydown', (e) => {
 
 // --- Restore last session and keep autosaving ---
 restoreAutosave();
+applyLabelVisibility();
+recordHistory();
 autosaveNow();
 setInterval(autosaveNow, 2000);
 window.addEventListener('beforeunload', autosaveNow);

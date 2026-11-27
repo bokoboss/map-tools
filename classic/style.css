@@ -201,3 +201,47 @@ body {
 .leaflet-bottom.leaflet-left .survey-legend { margin-bottom: 18px; }
 .survey-legend-row svg { flex: none; }
 .survey-legend-count { margin-left: auto; padding-left: 10px; color: #6b7280; white-space: nowrap; }
+
+/* --- Permanent pin labels --- */
+.leaflet-tooltip.pin-label {
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    box-shadow: none;
+    padding: 1px 6px;
+    font-family: 'Sarabun', sans-serif;
+    font-size: 12px;
+    line-height: 1.5;
+    color: #111827;
+    white-space: nowrap;
+}
+.leaflet-tooltip.pin-label::before { display: none; }
+.labels-hidden .leaflet-tooltip.pin-label { display: none; }
+
+/* --- Quick pin mode --- */
+.cursor-quick-pin, .cursor-quick-pin .leaflet-interactive { cursor: crosshair; }
+#quick-pin-bar {
+    position: fixed;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1500;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px 6px 12px;
+    background: rgba(255, 255, 255, 0.97);
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    font-family: 'Sarabun', sans-serif;
+    font-size: 14px;
+    max-width: calc(100vw - 24px);
+}
+#quick-pin-bar.hidden, body.exporting #quick-pin-bar { display: none; }
+#quick-pin-bar select { border: 1px solid #d1d5db; border-radius: 6px; padding: 4px 6px; font-size: 13px; background: #fff; }
+.quick-pin-title { font-weight: 600; color: #1f2937; white-space: nowrap; }
+.quick-pin-next { color: #6b7280; font-size: 13px; white-space: nowrap; }
+#quick-pin-done { background: #2563eb; color: #fff; border-radius: 6px; padding: 4px 12px; font-weight: 600; font-size: 13px; }
+#quick-pin-done:hover { background: #1d4ed8; }
+@media (max-width: 640px) { .quick-pin-next { display: none; } }
