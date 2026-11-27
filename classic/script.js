@@ -1187,27 +1187,192 @@ function restoreAutosave() {
     }
 }
 
-exportImageBtn.addEventListener('click', () => {
+// --- Image export ---
+// Screen export keeps the original behaviour; paper sizes frame part of the map at a
+// chosen DPI and add title, north arrow and scale bar for reports.
+const PAPER_MM = { a4l: [297, 210], a4p: [210, 297], a3l: [420, 297], a3p: [297, 420] };
+const exportPanel = getEl('export-panel'), exportFrame = getEl('export-frame');
+const exportPaper = getEl('export-paper'), exportDpi = getEl('export-dpi'), exportTitle = getEl('export-title');
+const exportNorth = getEl('export-north'), exportScale = getEl('export-scale'), exportLegend = getEl('export-legend'), exportLabels = getEl('export-labels');
+const exportSizeInfo = getEl('export-size-info');
+
+const scaleControl = L.control.scale({ metric: true, imperial: false, position: 'bottomright', maxWidth: 160 }).addTo(map);
+
+function exportTargetPx() {
+    const paper = PAPER_MM[exportPaper.value];
+    if (!paper) return null;
+    const dpi = parseInt(exportDpi.value, 10) || 200;
+    return { w: Math.round(paper[0] / 25.4 * dpi), h: Math.round(paper[1] / 25.4 * dpi), dpi };
+}
+
+function layoutExportFrame() {
+    const paper = PAPER_MM[exportPaper.value];
+    exportDpi.disabled = !paper;
+    if (!paper) {
+        exportFrame.classList.add('hidden');
+        const r = map.getContainer().getBoundingClientRect();
+        exportSizeInfo.textContent = `${Math.round(r.width)} × ${Math.round(r.height)} px`;
+        return;
+    }
+    const panelBottom = exportPanel.getBoundingClientRect().bottom;
+    const margin = 24;
+    const availW = window.innerWidth - margin * 2;
+    const availH = window.innerHeight - panelBottom - margin * 2;
+    const ratio = paper[0] / paper[1];
+    let w = availW, h = w / ratio;
+    if (h > availH) { h = availH; w = h * ratio; }
+    exportFrame.style.width = `${Math.round(w)}px`;
+    exportFrame.style.height = `${Math.round(h)}px`;
+    exportFrame.style.left = `${Math.round((window.innerWidth - w) / 2)}px`;
+    exportFrame.style.top = `${Math.round(panelBottom + margin + (availH - h) / 2)}px`;
+    exportFrame.classList.remove('hidden');
+    const t = exportTargetPx();
+    exportSizeInfo.textContent = `${t.w} × ${t.h} px`;
+}
+
+function openExportPanel() {
+    stopAllDrawing();
+    hideContextMenu();
+    toolPanel.classList.add('hidden');
+    exportLegend.checked = legendVisible;
+    exportLabels.checked = areLabelsVisible;
+    exportPanel.classList.remove('hidden');
+    document.body.classList.add('export-framing');
+    layoutExportFrame();
+}
+
+function closeExportPanel() {
+    exportPanel.classList.add('hidden');
+    exportFrame.classList.add('hidden');
+    document.body.classList.remove('export-framing');
+}
+
+exportImageBtn.addEventListener('click', openExportPanel);
+getEl('export-cancel-btn').addEventListener('click', closeExportPanel);
+exportPaper.addEventListener('change', layoutExportFrame);
+exportDpi.addEventListener('change', layoutExportFrame);
+window.addEventListener('resize', () => { if (!exportPanel.classList.contains('hidden')) layoutExportFrame(); });
+
+function tileLayersOf(layer) {
+    if (!layer) return [];
+    if (layer instanceof L.GridLayer) return [layer];
+    if (layer.getLayers) return layer.getLayers().flatMap(tileLayersOf);
+    return [];
+}
+
+function waitForTiles(timeoutMs = 12000) {
+    const layers = tileLayersOf(currentLayer);
+    const start = Date.now();
+    return new Promise(resolve => {
+        (function check() {
+            const busy = layers.some(l => l.isLoading && l.isLoading());
+            if (!busy || Date.now() - start > timeoutMs) setTimeout(resolve, 300);
+            else setTimeout(check, 150);
+        })();
+    });
+}
+
+function makeExportControls(opts) {
+    const added = [];
+    if (opts.title) {
+        const c = L.control({ position: 'topleft' });
+        c.onAdd = () => {
+            const d = L.DomUtil.create('div', 'export-title-block');
+            const date = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+            d.innerHTML = `<div class="export-title-text">${escapeHtml(opts.title)}</div><div class="export-title-date">${escapeHtml(date)}</div>`;
+            return d;
+        };
+        c.addTo(map); added.push(c);
+    }
+    if (opts.north) {
+        const c = L.control({ position: 'topright' });
+        c.onAdd = () => {
+            const d = L.DomUtil.create('div', 'export-north');
+            d.innerHTML = `<svg width="44" height="56" viewBox="0 0 44 56" xmlns="http://www.w3.org/2000/svg"><text x="22" y="13" text-anchor="middle" font-size="13" font-weight="700" font-family="Sarabun, sans-serif" fill="#111827">N</text><path d="M22 17 L32 50 L22 43 L12 50 Z" fill="#fff" stroke="#111827" stroke-width="1.5" stroke-linejoin="round"/><path d="M22 17 L22 43 L12 50 Z" fill="#111827"/></svg>`;
+            return d;
+        };
+        c.addTo(map); added.push(c);
+    }
+    return added;
+}
+
+async function runExport() {
+    const mapEl = map.getContainer();
+    const paperKey = exportPaper.value;
+    const target = exportTargetPx();
+    const prev = { legend: legendVisible, labels: areLabelsVisible };
+    const frameRect = target ? exportFrame.getBoundingClientRect() : null;
+    const savedStyle = mapEl.getAttribute('style') || '';
+    const savedView = { center: map.getCenter(), zoom: map.getZoom() };
+
     loadingOverlay.classList.remove('hidden');
     controlsContainer.classList.add('hidden');
     document.body.classList.add('exporting');
-    
-    setTimeout(() => {
-        html2canvas(document.getElementById('map'), {
-            useCORS: true,
-            logging: false
-        }).then(canvas => {
-            const a = document.createElement('a');
-            a.href = canvas.toDataURL('image/png');
-            a.download = 'map-capture.png';
-            a.click();
-        }).finally(() => {
-            loadingOverlay.classList.add('hidden');
-            controlsContainer.classList.remove('hidden');
-            document.body.classList.remove('exporting');
-        });
-    }, 500);
-});
+    legendVisible = exportLegend.checked; updateLegend();
+    areLabelsVisible = exportLabels.checked; applyLabelVisibility();
+    mapEl.classList.toggle('export-no-scale', !exportScale.checked);
+    const extra = target ? makeExportControls({ title: exportTitle.value.trim(), north: exportNorth.checked }) : [];
+
+    let fileName = 'map-capture.png';
+    try {
+        let scale = 1;
+        if (target) {
+            // Shrink the map container onto the frame so exactly the framed area is captured.
+            mapEl.style.position = 'fixed';
+            mapEl.style.left = `${frameRect.left}px`;
+            mapEl.style.top = `${frameRect.top}px`;
+            mapEl.style.width = `${frameRect.width}px`;
+            mapEl.style.height = `${frameRect.height}px`;
+            map.invalidateSize({ pan: false });
+            map.panBy([frameRect.left, frameRect.top], { animate: false });
+            scale = target.w / frameRect.width;
+            const stamp = projectFileName().replace('map-project-', '').replace('.json', '');
+            fileName = `map-${paperKey.slice(0, 2).toUpperCase()}${paperKey.endsWith('l') ? '-landscape' : '-portrait'}-${target.dpi}dpi-${stamp}.png`;
+        }
+        await waitForTiles();
+        let blob = null;
+        if (target && window.modernScreenshot) {
+            // html2canvas mis-places SVG icons and transformed labels when scale != 1,
+            // so paper exports use the browser's own rendering via modern-screenshot.
+            try {
+                blob = await modernScreenshot.domToBlob(mapEl, { scale, backgroundColor: '#ffffff', type: 'image/png' });
+            } catch (err) {
+                console.warn('modern-screenshot failed, falling back to html2canvas', err);
+            }
+        }
+        if (!blob) {
+            const canvas = await html2canvas(mapEl, { useCORS: true, logging: false, scale, backgroundColor: '#ffffff' });
+            blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+        }
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+        if (target) showToast(`ส่งออกแล้ว ${target.w} × ${target.h} px`);
+    } catch (err) {
+        console.error('Export failed', err);
+        showToast('ส่งออกภาพไม่สำเร็จ ลองลดความละเอียดหรือเปลี่ยนแผนที่พื้นหลัง');
+    } finally {
+        extra.forEach(c => c.remove());
+        if (target) {
+            mapEl.setAttribute('style', savedStyle);
+            map.invalidateSize({ pan: false });
+            map.setView(savedView.center, savedView.zoom, { reset: true });
+        }
+        mapEl.classList.remove('export-no-scale');
+        legendVisible = prev.legend; updateLegend();
+        areLabelsVisible = prev.labels; applyLabelVisibility();
+        loadingOverlay.classList.add('hidden');
+        controlsContainer.classList.remove('hidden');
+        document.body.classList.remove('exporting');
+        closeExportPanel();
+    }
+}
+getEl('export-run-btn').addEventListener('click', runExport);
 
 // --- Search Logic ---
 // Accepts "13.7563, 100.5018" (as copied from Google Maps) or "13.7563 100.5018".
@@ -1530,6 +1695,180 @@ function exportPointsCsv() {
 }
 exportCsvBtn.addEventListener('click', exportPointsCsv);
 
+// --- CSV import (appends points; columns matched by Thai or English header names) ---
+function parseCsv(text) {
+    text = text.replace(/^﻿/, '');
+    const firstLine = text.split(/\r?\n/, 1)[0];
+    const delim = (firstLine.match(/;/g) || []).length > (firstLine.match(/,/g) || []).length ? ';' : ',';
+    const rows = [];
+    let row = [], field = '', inQuotes = false;
+    for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        if (inQuotes) {
+            if (ch === '"' && text[i + 1] === '"') { field += '"'; i++; }
+            else if (ch === '"') inQuotes = false;
+            else field += ch;
+        } else if (ch === '"') inQuotes = true;
+        else if (ch === delim) { row.push(field); field = ''; }
+        else if (ch === '\n' || ch === '\r') {
+            if (ch === '\r' && text[i + 1] === '\n') i++;
+            row.push(field); rows.push(row); row = []; field = '';
+        } else field += ch;
+    }
+    if (field !== '' || row.length) { row.push(field); rows.push(row); }
+    return rows.filter(r => r.some(c => String(c).trim() !== ''));
+}
+
+const CSV_HEADER_ALIASES = {
+    code: ['รหัส', 'รหัสจุด', 'code', 'id', 'station'],
+    type: ['ประเภท', 'type', 'category'],
+    name: ['ชื่อ/รายละเอียด', 'ชื่อ', 'รายละเอียด', 'name', 'label', 'description'],
+    lat: ['ละติจูด', 'lat', 'latitude', 'y'],
+    lng: ['ลองจิจูด', 'lng', 'lon', 'long', 'longitude', 'x'],
+    radius: ['รัศมี (ม.)', 'รัศมี', 'radius', 'radii', 'radius (m)']
+};
+
+function typeFromCsv(typeText, code) {
+    const t = String(typeText || '').trim().toLowerCase();
+    for (const key of SURVEY_TYPE_ORDER) {
+        if (t && (t === key || t === SURVEY_TYPES[key].label.toLowerCase())) return key;
+    }
+    if (t.includes('ไม่มีสัญญาณ') || t.includes('unsignal')) return 'tmc_unsignal';
+    if (t.includes('สัญญาณไฟ') || t.includes('signal')) return 'tmc_signal';
+    if (t.includes('กลับรถ') || t.includes('u-turn') || t.includes('uturn')) return 'uturn';
+    if (t.includes('คนเดิน') || t.includes('pedestrian')) return 'ped';
+    if (t.includes('od')) return 'od';
+    if (t.includes('ช่วงถนน') || t.includes('link')) return 'mb';
+    const prefix = String(code || '').trim().toUpperCase().split('-')[0];
+    const byPrefix = { TMC: 'tmc_signal', UT: 'uturn', MB: 'mb', PC: 'ped', OD: 'od' };
+    return byPrefix[prefix] || 'general';
+}
+
+function importPointsCsv(text) {
+    const rows = parseCsv(text);
+    if (rows.length < 2) { showToast('ไฟล์ CSV ไม่มีข้อมูล'); return; }
+    const header = rows[0].map(h => String(h).trim().toLowerCase());
+    const col = {};
+    Object.entries(CSV_HEADER_ALIASES).forEach(([key, names]) => {
+        col[key] = header.findIndex(h => names.includes(h));
+    });
+    if (col.lat < 0 || col.lng < 0) { showToast('ไม่พบคอลัมน์ละติจูด/ลองจิจูด (lat, lng)'); return; }
+    let added = 0, skipped = 0;
+    const bounds = L.latLngBounds([]);
+    rows.slice(1).forEach(r => {
+        const lat = parseFloat(String(r[col.lat] ?? '').replace(/\s/g, ''));
+        const lng = parseFloat(String(r[col.lng] ?? '').replace(/\s/g, ''));
+        if (!isFinite(lat) || !isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) { skipped++; return; }
+        const code = col.code >= 0 ? String(r[col.code] ?? '').trim() : '';
+        const type = typeFromCsv(col.type >= 0 ? r[col.type] : '', code);
+        const radii = col.radius >= 0
+            ? String(r[col.radius] ?? '').split(/[;|\/]/).map(v => parseFloat(v)).filter(v => v > 0)
+                .map((d, i) => ({ id: Date.now() + added * 100 + i, distance: d, color: '#3388ff' }))
+            : [];
+        createMarkerFromData({
+            labelText: col.name >= 0 ? String(r[col.name] ?? '').trim() : '',
+            markerColor: type === 'general' ? '#2563eb' : SURVEY_TYPES[type].color,
+            pointType: type,
+            code: type === 'general' ? '' : (code || nextCode(SURVEY_TYPES[type].prefix)),
+            latlng: L.latLng(lat, lng),
+            radii
+        });
+        bounds.extend([lat, lng]);
+        added++;
+    });
+    updateLegend();
+    if (bounds.isValid()) map.fitBounds(bounds, { padding: [60, 60], maxZoom: 17 });
+    clearTimeout(historyTimer);
+    recordHistory();
+    showToast(`นำเข้า ${added} จุด${skipped ? ` (ข้าม ${skipped} แถวที่พิกัดไม่ถูกต้อง)` : ''}`);
+}
+
+const importCsvInput = getEl('import-csv-input');
+getEl('import-csv-btn').addEventListener('click', () => importCsvInput.click());
+importCsvInput.addEventListener('change', (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+        try { importPointsCsv(String(e.target.result)); }
+        catch (err) { console.error(err); showToast('อ่านไฟล์ CSV ไม่สำเร็จ'); }
+    };
+    reader.readAsText(file, 'utf-8');
+    importCsvInput.value = '';
+});
+
+// --- KML export (Google Earth / Google My Maps) ---
+function xmlEscape(v) {
+    return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function kmlColor(hex, alpha = 'ff') {
+    const h = safeColor(hex, '#3388ff').replace('#', '');
+    const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h.slice(0, 6);
+    return alpha + full.slice(4, 6) + full.slice(2, 4) + full.slice(0, 2); // aabbggrr
+}
+function circleRing(center, radiusM, steps = 72) {
+    const R = 6378137, lat = center.lat * Math.PI / 180, lng = center.lng * Math.PI / 180, d = radiusM / R;
+    const pts = [];
+    for (let i = 0; i <= steps; i++) {
+        const brg = 2 * Math.PI * i / steps;
+        const lat2 = Math.asin(Math.sin(lat) * Math.cos(d) + Math.cos(lat) * Math.sin(d) * Math.cos(brg));
+        const lng2 = lng + Math.atan2(Math.sin(brg) * Math.sin(d) * Math.cos(lat), Math.cos(d) - Math.sin(lat) * Math.sin(lat2));
+        pts.push(`${(lng2 * 180 / Math.PI).toFixed(7)},${(lat2 * 180 / Math.PI).toFixed(7)},0`);
+    }
+    return pts.join(' ');
+}
+function coordsOf(latlngs) { return latlngs.map(ll => `${ll.lng.toFixed(7)},${ll.lat.toFixed(7)},0`).join(' '); }
+
+function exportKml() {
+    if (markers.length === 0 && drawnItems.getLayers().length === 0) { showToast('ยังไม่มีข้อมูลให้ส่งออก'); return; }
+    const styles = [], folders = [];
+    const typesUsed = [...SURVEY_TYPE_ORDER.slice(1), 'general'].filter(t => markers.some(m => normalizeType(m.pointType) === t));
+    typesUsed.forEach(t => {
+        const pins = markers.filter(m => normalizeType(m.pointType) === t);
+        const placemarks = pins.map((m, i) => {
+            const color = t === 'general' ? m.markerColor : SURVEY_TYPES[t].color;
+            const styleId = `s-${t}-${i}`;
+            styles.push(`<Style id="${styleId}"><IconStyle><color>${kmlColor(color)}</color><scale>1.1</scale><Icon><href>https://maps.google.com/mapfiles/kml/paddle/wht-blank.png</href></Icon></IconStyle><LabelStyle><scale>0.9</scale></LabelStyle></Style>`);
+            const ll = m.getLatLng();
+            const name = displayName(m) || SURVEY_TYPES[t].label;
+            const desc = `ประเภท: ${SURVEY_TYPES[t].label}${m.radii.length ? `\nรัศมี: ${m.radii.map(r => r.distance + ' ม.').join(', ')}` : ''}`;
+            const rings = m.radii.map(r => `<Placemark><name>${xmlEscape(name)} · ${r.distance} ม.</name><Style><LineStyle><color>${kmlColor(r.color)}</color><width>2</width></LineStyle><PolyStyle><color>${kmlColor(r.color, '33')}</color></PolyStyle></Style><Polygon><outerBoundaryIs><LinearRing><coordinates>${circleRing(ll, r.distance)}</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>`).join('');
+            return `<Placemark><name>${xmlEscape(name)}</name><description>${xmlEscape(desc)}</description><styleUrl>#${styleId}</styleUrl><Point><coordinates>${ll.lng.toFixed(7)},${ll.lat.toFixed(7)},0</coordinates></Point></Placemark>${rings}`;
+        }).join('');
+        folders.push(`<Folder><name>${xmlEscape(SURVEY_TYPES[t].label)} (${pins.length})</name>${placemarks}</Folder>`);
+    });
+    const shapes = [];
+    drawnItems.eachLayer(layer => {
+        if (layer.isTextLabel) {
+            const ll = layer.getLatLng();
+            shapes.push(`<Placemark><name>${xmlEscape(layer.labelText)}</name><Style><IconStyle><scale>0</scale></IconStyle></Style><Point><coordinates>${ll.lng.toFixed(7)},${ll.lat.toFixed(7)},0</coordinates></Point></Placemark>`);
+            return;
+        }
+        const line = layer.isArrow ? layer.getLayers().find(l => l instanceof L.Polyline) : layer;
+        const color = line.options.color;
+        const style = `<Style><LineStyle><color>${kmlColor(color)}</color><width>3</width></LineStyle><PolyStyle><color>${kmlColor(color, '33')}</color></PolyStyle></Style>`;
+        if (line instanceof L.Circle) {
+            shapes.push(`<Placemark><name>วงกลม ${Math.round(line.getRadius())} ม.</name>${style}<Polygon><outerBoundaryIs><LinearRing><coordinates>${circleRing(line.getLatLng(), line.getRadius())}</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>`);
+        } else if (line instanceof L.Polygon) {
+            const ring = line.getLatLngs()[0];
+            shapes.push(`<Placemark><name>รูปหลายเหลี่ยม</name>${style}<Polygon><outerBoundaryIs><LinearRing><coordinates>${coordsOf([...ring, ring[0]])}</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>`);
+        } else if (line instanceof L.Polyline) {
+            shapes.push(`<Placemark><name>${layer.isArrow ? 'ลูกศร' : 'เส้น'}</name>${style}<LineString><tessellate>1</tessellate><coordinates>${coordsOf(line.getLatLngs())}</coordinates></LineString></Placemark>`);
+        }
+    });
+    if (shapes.length) folders.push(`<Folder><name>รูปทรงและข้อความ (${shapes.length})</name>${shapes.join('')}</Folder>`);
+    const kml = `<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>${xmlEscape(exportTitle.value.trim() || 'Map Tools')}</name>${styles.join('')}${folders.join('')}</Document></kml>`;
+    const url = URL.createObjectURL(new Blob([kml], { type: 'application/vnd.google-earth.kml+xml' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = projectFileName().replace('map-project', 'map').replace('.json', '.kml');
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+getEl('export-kml-btn').addEventListener('click', exportKml);
+
 // --- Quick pin mode: click the map repeatedly to drop pins of one type ---
 let quickPinActive = false;
 const quickBar = document.createElement('div');
@@ -1675,6 +2014,7 @@ document.addEventListener('keydown', (e) => {
 // --- Keyboard: Escape cancels the current tool, menu or dialog ---
 document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
+    closeExportPanel();
     hideContextMenu();
     stopAllDrawing();
     hideAllModals();
