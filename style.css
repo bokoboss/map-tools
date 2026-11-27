@@ -10,7 +10,8 @@ body {
 /* Custom styles for Leaflet popups */
 .leaflet-popup-content-wrapper {
     border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    border: 1px solid rgba(17, 24, 39, 0.12);
 }
 .leaflet-popup-content {
     font-size: 14px;
@@ -39,15 +40,15 @@ body {
 /* Style for ALL custom control buttons */
 .custom-leaflet-control {
     background-color: white;
-    width: 34px;
-    height: 34px;
+    width: 44px;
+    height: 44px;
     display: flex;
     align-items: center;
     justify-content: center;
     border-radius: 8px;
-    box-shadow: 0 1px 5px rgba(0,0,0,0.4);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    border: 1px solid rgba(17, 24, 39, 0.16);
     cursor: pointer;
-    transition: background-color 0.2s;
 }
 .custom-leaflet-control:hover {
     background-color: #f3f4f6; /* gray-100 */
@@ -173,10 +174,10 @@ body {
     color: #fff;
     font-size: 0.875rem;
     line-height: 1.4;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
     opacity: 0;
     pointer-events: none;
-    transition: opacity 160ms ease, transform 160ms ease;
+    transition: opacity 150ms ease-out, transform 150ms ease-out;
     z-index: 5000;
 }
 #app-toast.visible { opacity: 1; transform: translate(-50%, 0); }
@@ -188,12 +189,12 @@ body {
     background: rgba(255, 255, 255, 0.95);
     border: 1px solid #e5e7eb;
     border-radius: 10px;
-    padding: 8px 10px;
+    padding: 8px 12px;
     font-family: 'Sarabun', sans-serif;
-    font-size: 13px;
+    font-size: 14px;
     color: #1f2937;
     min-width: 190px;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 .survey-legend.hidden { display: none; }
 .survey-legend-title { font-weight: 600; margin-bottom: 6px; line-height: 1.5; }
@@ -229,11 +230,11 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 8px 6px 12px;
+    padding: 8px 8px 8px 12px;
     background: rgba(255, 255, 255, 0.97);
     border: 1px solid #e5e7eb;
     border-radius: 10px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
     font-family: 'Sarabun', sans-serif;
     font-size: 14px;
     max-width: calc(100vw - 24px);
@@ -257,8 +258,8 @@ body {
     background: rgba(255, 255, 255, 0.98);
     border: 1px solid #e5e7eb;
     border-radius: 12px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14);
-    padding: 12px 14px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+    padding: 12px 16px;
     font-family: 'Sarabun', sans-serif;
     font-size: 14px;
     color: #1f2937;
@@ -296,7 +297,7 @@ body.export-framing #controls-container { display: none; }
     font-family: 'Sarabun', sans-serif;
     max-width: 60vw;
 }
-.export-title-text { font-size: 18px; font-weight: 700; color: #111827; line-height: 1.4; }
+.export-title-text { font-size: 18px; font-weight: 600; color: #111827; line-height: 1.4; }
 .export-title-date { font-size: 12px; color: #4b5563; line-height: 1.4; }
 .export-north { background: rgba(255, 255, 255, 0.9); border-radius: 8px; padding: 4px 6px; line-height: 0; }
 
@@ -304,3 +305,73 @@ body.export-framing #controls-container { display: none; }
 .export-no-scale .leaflet-control-scale { display: none; }
 body.exporting .leaflet-control-zoom { display: none; }
 .survey-legend-row span { white-space: nowrap; }
+
+
+/* ===== UX audit fixes ===== */
+body b, body strong { font-weight: 600; }
+.leaflet-control-zoom-in, .leaflet-control-zoom-out { font-weight: 600 !important; }
+.ui-raised { box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08); }
+
+/* 44px minimum hit targets */
+.leaflet-bar a, .leaflet-touch .leaflet-bar a { width: 44px; height: 44px; line-height: 44px; }
+.modal-content button, #export-panel button, #quick-pin-bar button, #quick-pin-bar select,
+#search-panel button, #search-panel input, #layer-options button, #main-tool-panel button { min-height: 44px; }
+.modal-content input[type="text"], .modal-content input[type="number"], .modal-content select { min-height: 44px; }
+#context-menu a { min-height: 44px; display: flex; align-items: center; }
+.modal-content button.w-6, .modal-content button.h-6 { min-width: 44px; }
+
+/* Tool panel: every action shows a visible label under its icon */
+.tool-btn {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    min-height: 56px; padding: 8px 4px; border-radius: 8px; background: #f3f4f6; color: #374151;
+}
+.tool-btn:hover { background: #e5e7eb; }
+.tool-btn[aria-pressed="false"] { color: #9ca3af; }
+.tool-label { font-size: 12px; line-height: 1.3; text-align: center; color: #374151; }
+.kbd-hint {
+    font-family: inherit; font-size: 12px; color: #6b7280; border: 1px solid #d1d5db; border-radius: 4px; padding: 0 4px; margin-left: 4px;
+}
+
+/* Real tooltip on hover and keyboard focus for icon-only chrome buttons */
+[data-tip] { position: relative; }
+@media (hover: hover) { [data-tip]:hover::after { content: attr(data-tip); } }
+[data-tip]:focus-visible::after { content: attr(data-tip); }
+[data-tip]:hover::after, [data-tip]:focus-visible::after {
+    position: absolute; right: calc(100% + 8px); top: 50%; transform: translateY(-50%);
+    white-space: nowrap; background: #111827; color: #fff; font-size: 12px; line-height: 1.4;
+    padding: 4px 8px; border-radius: 6px; pointer-events: none; z-index: 2000;
+}
+@media (hover: none) { [data-tip]:hover::after { content: none; } }
+
+/* Visible keyboard focus */
+button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible {
+    outline: 2px solid #2563eb; outline-offset: 2px;
+}
+
+/* First-use guidance */
+#empty-hint {
+    position: fixed; left: 16px; bottom: 32px; z-index: 950; width: min(360px, calc(100vw - 32px));
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08); font-family: 'Sarabun', sans-serif; color: #1f2937;
+}
+#empty-hint.hidden, body.exporting #empty-hint, body.export-framing #empty-hint { display: none; }
+.empty-hint-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+#empty-hint h2 { font-size: 16px; font-weight: 600; line-height: 1.25; }
+#empty-hint p { font-size: 14px; line-height: 1.5; color: #4b5563; margin: 8px 0 12px; }
+#empty-hint-close { width: 44px; height: 44px; margin: -12px -12px 0 0; font-size: 20px; color: #6b7280; border-radius: 8px; }
+#empty-hint-close:hover { background: #f3f4f6; }
+.empty-hint-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.empty-hint-actions button { min-height: 44px; padding: 0 16px; border-radius: 8px; font-size: 14px; font-weight: 600; background: #f3f4f6; color: #1f2937; }
+.empty-hint-actions button:hover { background: #e5e7eb; }
+.empty-hint-actions button.primary { background: #2563eb; color: #fff; }
+.empty-hint-actions button.primary:hover { background: #1d4ed8; }
+
+/* Toast: keep clear of the legend on narrow screens */
+@media (max-width: 640px) { #app-toast { bottom: auto; top: 16px; } }
+
+/* Reduced motion: no scale/translate on dialogs */
+@media (prefers-reduced-motion: reduce) {
+    .modal-content { animation: none !important; }
+    #app-toast { transform: translate(-50%, 0) !important; }
+}
+.shortcut-caption { font-size: 12px; line-height: 1.4; color: #6b7280; margin-top: 8px; }

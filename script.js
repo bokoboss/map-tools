@@ -76,7 +76,7 @@ function surveySymbolSvg(type, size = 28) {
         case 'ped':
             return open + `<path d="M14 2 26 24H2Z" fill="${c}" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><circle cx="14" cy="11" r="2" fill="#fff"/><path d="M14 13.5v4.5M11.5 21l2.5-3 2.5 3M11.5 15.5h5" stroke="#fff" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg>`;
         case 'od':
-            return open + `<path d="M14 2 24.4 8v12L14 26 3.6 20V8Z" fill="${c}" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><text x="14" y="17.5" text-anchor="middle" font-size="9" font-weight="700" fill="#fff" font-family="Sarabun, sans-serif">OD</text></svg>`;
+            return open + `<path d="M14 2 24.4 8v12L14 26 3.6 20V8Z" fill="${c}" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><text x="14" y="17.5" text-anchor="middle" font-size="9" font-weight="600" fill="#fff" font-family="Sarabun, sans-serif">OD</text></svg>`;
         default:
             return '';
     }
@@ -129,6 +129,22 @@ const pinColorRow = getEl('pin-color-row'), toggleLegendBtn = getEl('toggle-lege
 const deleteConfirmModal = getEl('delete-confirm-modal'), cancelDeleteBtn = getEl('cancel-delete-btn'), confirmDeleteBtn = getEl('confirm-delete-btn');
 const deleteConfirmMessage = getEl('delete-confirm-message');
 const deleteAllConfirmModal = getEl('delete-all-confirm-modal'), cancelDeleteAllBtn = getEl('cancel-delete-all-btn'), confirmDeleteAllBtn = getEl('confirm-delete-all-btn');
+
+// Delete confirmations name the exact item and use a destructive verb on the button.
+function shapeKindLabel(layer) {
+    if (layer.isTextLabel) return 'ข้อความ';
+    if (layer.isArrow) return 'ลูกศร';
+    if (layer instanceof L.Circle) return 'วงกลม';
+    if (layer instanceof L.Rectangle) return 'สี่เหลี่ยม';
+    if (layer instanceof L.Polygon) return 'รูปหลายเหลี่ยม';
+    if (layer instanceof L.Polyline) return 'เส้น';
+    return 'รูปทรง';
+}
+function setDeleteConfirm(kind, name) {
+    getEl('delete-confirm-title').textContent = name ? `ลบ${kind} “${name}”?` : `ลบ${kind}นี้?`;
+    deleteConfirmMessage.textContent = 'รายการนี้จะหายจากแผนที่ กด Ctrl+Z เพื่อเอากลับได้';
+    confirmDeleteBtn.textContent = `ลบ${kind}`;
+}
 const manageRadiusBtn = getEl('manage-radius-btn'), radiusModal = getEl('radius-modal'), radiusInput = getEl('radius-input');
 const radiusColorSelector = getEl('radius-color-selector'), addRadiusBtn = getEl('add-radius-btn'), radiusList = getEl('radius-list');
 const closeRadiusModalBtn = getEl('close-radius-modal-btn'), radiusFormTitle = getEl('radius-form-title'), cancelEditRadiusBtn = getEl('cancel-edit-radius-btn');
@@ -295,7 +311,7 @@ function applyLabelVisibility() {
     toggleLabelsIcon.innerHTML = areLabelsVisible
         ? `<path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />`
         : `<path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />`;
-    toggleLabelsBtn.title = areLabelsVisible ? 'ซ่อนป้ายชื่อหมุด' : 'แสดงป้ายชื่อหมุด';
+    toggleLabelsBtn.setAttribute('aria-pressed', String(areLabelsVisible));
 }
 
 // --- Point type UI ---
@@ -474,7 +490,7 @@ radiusList.addEventListener('click', (e) => {
 deletePinBtn.addEventListener('click', () => {
     if (markerToEdit) {
         itemToDelete = { type: 'marker', marker: markerToEdit };
-        deleteConfirmMessage.innerText = 'คุณแน่ใจหรือไม่ว่าต้องการลบหมุดนี้?';
+        setDeleteConfirm('หมุด', displayName(markerToEdit));
         pinModal.classList.add('hidden');
         deleteConfirmModal.classList.remove('hidden');
     }
@@ -503,6 +519,9 @@ confirmDeleteBtn.addEventListener('click', () => {
 
 deleteAllBtn.addEventListener('click', () => { 
     if (markers.length > 0 || drawnItems.getLayers().length > 0) {
+        const shapeCount = drawnItems.getLayers().length;
+        getEl('delete-all-message').textContent =
+            `หมุด ${markers.length} จุด และรูปทรง/ข้อความ ${shapeCount} รายการ จะหายจากแผนที่ กด Ctrl+Z เพื่อเอากลับได้`;
         deleteAllConfirmModal.classList.remove('hidden');
     }
 });
@@ -523,7 +542,7 @@ confirmDeleteAllBtn.addEventListener('click', () => {
 });
 
 pinLabelInput.addEventListener('keyup', e => { if (e.key === 'Enter') { e.preventDefault(); savePinBtn.click(); } });
-pinLabelInput.placeholder = 'ไม่บังคับ';
+pinLabelInput.placeholder = 'เช่น แยกปทุมวัน';
 
 toggleLabelsBtn.addEventListener('click', () => {
     areLabelsVisible = !areLabelsVisible;
@@ -638,7 +657,7 @@ window.confirmDeleteShapeById = function(layerId) {
     const layer = drawnItems.getLayer(layerId);
     if (layer) {
         itemToDelete = { type: 'shape', layer: layer };
-        deleteConfirmMessage.innerText = 'คุณแน่ใจหรือไม่ว่าต้องการลบรูปทรงนี้?';
+        setDeleteConfirm(shapeKindLabel(layer), '');
         map.closePopup();
         deleteConfirmModal.classList.remove('hidden');
     }
@@ -885,7 +904,7 @@ function addLayerContextMenu(layer) {
             menuItems.push({ isSeparator: true });
             menuItems.push({ text: 'ลบหมุด', callback: () => {
                 itemToDelete = { type: 'marker', marker: layer };
-                deleteConfirmMessage.innerText = 'คุณแน่ใจหรือไม่ว่าต้องการลบหมุดนี้?';
+                setDeleteConfirm('หมุด', displayName(marker));
                 deleteConfirmModal.classList.remove('hidden');
             }});
         } else { // Other shapes
@@ -911,6 +930,7 @@ function createMarkerFromData(data) {
     newMarker.circleLayerGroup = L.layerGroup().addTo(map);
     newMarker.bindPopup(createPopupContent(newMarker), { autoClose: false, closeButton: false });
     refreshMarkerLabel(newMarker);
+    if (document.getElementById('empty-hint')) updateEmptyState();
     
     newMarker.on('dragstart', e => e.target.closePopup());
     newMarker.on('drag', e => drawCirclesForMarker(e.target));
@@ -1148,7 +1168,7 @@ fileInput.addEventListener('change', (event) => {
             showToast(`เปิดโปรเจกต์แล้ว: ${file.name}`);
         } catch (error) {
             console.error("Error loading project:", error);
-            alert('ไฟล์ไม่ถูกต้องหรือไม่สามารถอ่านข้อมูลได้');
+            showToast('เปิดไฟล์นี้ไม่ได้ เพราะไม่ใช่ไฟล์โปรเจกต์ .json ของ Map Tools เลือกไฟล์ที่บันทึกจากปุ่ม "บันทึก" แล้วลองอีกครั้ง');
         }
     };
     reader.readAsText(file);
@@ -1290,7 +1310,7 @@ function makeExportControls(opts) {
         const c = L.control({ position: 'topright' });
         c.onAdd = () => {
             const d = L.DomUtil.create('div', 'export-north');
-            d.innerHTML = `<svg width="44" height="56" viewBox="0 0 44 56" xmlns="http://www.w3.org/2000/svg"><text x="22" y="13" text-anchor="middle" font-size="13" font-weight="700" font-family="Sarabun, sans-serif" fill="#111827">N</text><path d="M22 17 L32 50 L22 43 L12 50 Z" fill="#fff" stroke="#111827" stroke-width="1.5" stroke-linejoin="round"/><path d="M22 17 L22 43 L12 50 Z" fill="#111827"/></svg>`;
+            d.innerHTML = `<svg width="44" height="56" viewBox="0 0 44 56" xmlns="http://www.w3.org/2000/svg"><text x="22" y="13" text-anchor="middle" font-size="13" font-weight="600" font-family="Sarabun, sans-serif" fill="#111827">N</text><path d="M22 17 L32 50 L22 43 L12 50 Z" fill="#fff" stroke="#111827" stroke-width="1.5" stroke-linejoin="round"/><path d="M22 17 L22 43 L12 50 Z" fill="#111827"/></svg>`;
             return d;
         };
         c.addTo(map); added.push(c);
@@ -1547,7 +1567,7 @@ saveNewTextBtn.addEventListener('click', saveTextHandler);
 deleteTextBtn.addEventListener('click', () => {
     if (textMarkerToEdit) {
         itemToDelete = { type: 'shape', layer: textMarkerToEdit };
-        deleteConfirmMessage.innerText = 'คุณแน่ใจหรือไม่ว่าต้องการลบข้อความนี้?';
+        setDeleteConfirm('ข้อความ', textMarkerToEdit.labelText);
         textModal.classList.add('hidden');
         deleteConfirmModal.classList.remove('hidden');
     }
@@ -1758,14 +1778,17 @@ function updateLegend() {
         if (t !== 'general') counts[t] = (counts[t] || 0) + 1;
     });
     const types = SURVEY_TYPE_ORDER.filter(t => counts[t]);
+    if (document.getElementById('empty-hint')) updateEmptyState();
     div.classList.toggle('hidden', !legendVisible || types.length === 0);
     div.innerHTML = '<div class="survey-legend-title">คำอธิบายสัญลักษณ์</div>' + types.map(t =>
         `<div class="survey-legend-row">${surveySymbolSvg(t, 20)}<span>${escapeHtml(SURVEY_TYPES[t].label)}</span><span class="survey-legend-count">${counts[t]} จุด</span></div>`
     ).join('');
 }
 
+toggleLegendBtn.setAttribute('aria-pressed', 'true');
 toggleLegendBtn.addEventListener('click', () => {
     legendVisible = !legendVisible;
+    toggleLegendBtn.setAttribute('aria-pressed', String(legendVisible));
     updateLegend();
     showToast(legendVisible ? 'แสดงคำอธิบายสัญลักษณ์' : 'ซ่อนคำอธิบายสัญลักษณ์');
 });
@@ -1986,7 +2009,7 @@ quickBar.innerHTML = `
     <label class="sr-only" for="quick-pin-type">ประเภทจุด</label>
     <select id="quick-pin-type"></select>
     <span id="quick-pin-next" class="quick-pin-next"></span>
-    <button id="quick-pin-done" type="button">เสร็จ</button>`;
+    <button id="quick-pin-done" type="button">หยุดปักหมุด</button>`;
 document.body.appendChild(quickBar);
 const quickPinType = getEl('quick-pin-type'), quickPinNext = getEl('quick-pin-next'), quickPinDone = getEl('quick-pin-done');
 SURVEY_TYPE_ORDER.forEach(key => {
@@ -2012,6 +2035,7 @@ function startQuickPin() {
     quickPinBtn.classList.add('active');
     L.DomUtil.addClass(map.getContainer(), 'cursor-quick-pin');
     toolPanel.classList.add('hidden');
+    if (document.getElementById('empty-hint')) updateEmptyState();
 }
 
 function stopQuickPin() {
@@ -2020,6 +2044,7 @@ function stopQuickPin() {
     quickBar.classList.add('hidden');
     quickPinBtn.classList.remove('active');
     L.DomUtil.removeClass(map.getContainer(), 'cursor-quick-pin');
+    if (document.getElementById('empty-hint')) updateEmptyState();
 }
 
 quickPinType.addEventListener('change', () => { lastPointType = normalizeType(quickPinType.value); updateQuickNext(); });
@@ -2117,6 +2142,101 @@ document.addEventListener('keydown', (e) => {
     else if ((key === 'z' && e.shiftKey) || key === 'y') { e.preventDefault(); redo(); }
 });
 
+// --- Tool panel toggle reflects its state for tooltips and assistive tech ---
+(function () {
+    const btn = getEl('toggle-tool-panel-btn');
+    const sync = () => {
+        const open = !toolPanel.classList.contains('hidden');
+        btn.setAttribute('aria-expanded', String(open));
+        btn.setAttribute('aria-label', open ? 'ปิดเครื่องมือ' : 'เปิดเครื่องมือ');
+        btn.dataset.tip = open ? 'ปิดเครื่องมือ' : 'เปิดเครื่องมือ';
+        if (document.getElementById('empty-hint')) updateEmptyState();
+    };
+    new MutationObserver(sync).observe(toolPanel, { attributes: true, attributeFilter: ['class'] });
+    sync();
+})();
+
+// --- First-use guidance (shown only while the map has no pins or shapes) ---
+let emptyHintDismissed = false;
+const emptyHint = document.createElement('section');
+emptyHint.id = 'empty-hint';
+emptyHint.className = 'hidden';
+emptyHint.setAttribute('aria-labelledby', 'empty-hint-title');
+emptyHint.innerHTML = `
+    <div class="empty-hint-head">
+        <h2 id="empty-hint-title">เริ่มทำแผนจุดสำรวจ</h2>
+        <button type="button" id="empty-hint-close" aria-label="ปิดคำแนะนำ">×</button>
+    </div>
+    <p>วางจุดนับรถพร้อมรหัสอัตโนมัติ แล้วส่งออกเป็นภาพหรือ CSV สำหรับรายงาน หรือคลิกขวาบนแผนที่เพื่อปักหมุดทีละจุด</p>
+    <div class="empty-hint-actions">
+        <button type="button" id="empty-hint-quick" class="primary">ปักหมุดเร็ว</button>
+        <button type="button" id="empty-hint-import">นำเข้า CSV</button>
+        <button type="button" id="empty-hint-open">เปิดโปรเจกต์</button>
+    </div>`;
+document.body.appendChild(emptyHint);
+function updateEmptyState() {
+    const empty = markers.length === 0 && drawnItems.getLayers().length === 0;
+    const bar = document.getElementById('quick-pin-bar');
+    const quickOn = !!bar && !bar.classList.contains('hidden');
+    const toolsOpen = !toolPanel.classList.contains('hidden');
+    emptyHint.classList.toggle('hidden', !empty || emptyHintDismissed || quickOn || toolsOpen);
+}
+getEl('empty-hint-close').addEventListener('click', () => { emptyHintDismissed = true; updateEmptyState(); });
+getEl('empty-hint-quick').addEventListener('click', () => { startQuickPin(); updateEmptyState(); });
+getEl('empty-hint-import').addEventListener('click', () => importCsvInput.click());
+getEl('empty-hint-open').addEventListener('click', () => fileInput.click());
+drawnItems.on('layeradd layerremove', updateEmptyState);
+quickPinDone.addEventListener('click', updateEmptyState);
+
+// --- Dialog focus: move focus in, trap Tab inside, restore to the trigger on close ---
+const DIALOG_INITIAL_FOCUS = {
+    'delete-confirm-modal': '#cancel-delete-btn',
+    'delete-all-confirm-modal': '#cancel-delete-all-btn'
+};
+const FOCUSABLE = 'button:not([disabled]), [href], input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+function visibleDialogs() {
+    return [...document.querySelectorAll('[id$="-modal"].fixed')].filter(m => !m.classList.contains('hidden'));
+}
+document.querySelectorAll('[id$="-modal"].fixed').forEach(modal => {
+    modal.setAttribute('role', modal.id.includes('delete') ? 'alertdialog' : 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    const heading = modal.querySelector('h3');
+    if (heading) { heading.id = heading.id || `${modal.id}-title`; modal.setAttribute('aria-labelledby', heading.id); }
+    let wasOpen = !modal.classList.contains('hidden');
+    new MutationObserver(() => {
+        const open = !modal.classList.contains('hidden');
+        if (open === wasOpen) return;
+        wasOpen = open;
+        if (open) {
+            if (!modal.contains(document.activeElement)) modal._returnFocus = document.activeElement;
+            setTimeout(() => {
+                const forced = DIALOG_INITIAL_FOCUS[modal.id] && modal.querySelector(DIALOG_INITIAL_FOCUS[modal.id]);
+                if (forced) forced.focus();
+                else if (!modal.contains(document.activeElement)) {
+                    const first = [...modal.querySelectorAll(FOCUSABLE)].find(el => el.offsetParent !== null);
+                    if (first) first.focus();
+                }
+            }, 0);
+        } else {
+            const back = modal._returnFocus;
+            modal._returnFocus = null;
+            if (back && document.contains(back) && back !== document.body && visibleDialogs().length === 0 && typeof back.focus === 'function') back.focus();
+        }
+    }).observe(modal, { attributes: true, attributeFilter: ['class'] });
+});
+document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Tab') return;
+    const dialogs = visibleDialogs();
+    if (!dialogs.length) return;
+    const top = dialogs[dialogs.length - 1];
+    const items = [...top.querySelectorAll(FOCUSABLE)].filter(el => el.offsetParent !== null);
+    if (!items.length) return;
+    const first = items[0], last = items[items.length - 1];
+    if (!top.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+    else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+});
+
 // --- Keyboard: Escape cancels the current tool, menu or dialog ---
 document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
@@ -2130,6 +2250,7 @@ document.addEventListener('keydown', (e) => {
 // --- Restore last session and keep autosaving ---
 restoreAutosave();
 applyLabelVisibility();
+updateEmptyState();
 recordHistory();
 autosaveNow();
 setInterval(autosaveNow, 2000);
