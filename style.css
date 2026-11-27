@@ -396,3 +396,25 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 body.exporting .inspector, body.export-framing .inspector { display: none; }
 .is-editing { outline: 3px solid #2563eb; outline-offset: 3px; border-radius: 8px; z-index: 1000 !important; }
 @media (prefers-reduced-motion: reduce) { .inspector .modal-content { animation: none !important; } }
+
+/* ===== Basemap menu ===== */
+/* panel opens beside the layers button (about 68px from the top), so leave room below it */
+.basemap-panel { width: 360px; max-height: calc(100vh - 88px); overflow-y: auto; }
+.basemap-group { font-size: 12px; line-height: 1.4; color: #6b7280; margin: 12px 0 8px; }
+.basemap-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.basemap-option {
+    display: flex; flex-direction: column; align-items: stretch; text-align: left; gap: 4px;
+    padding: 4px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; min-height: 44px;
+}
+.basemap-option:hover { border-color: #9ca3af; }
+.basemap-option[aria-pressed="true"] { border-color: #2563eb; box-shadow: 0 0 0 1px #2563eb; }
+.basemap-option img { display: block; width: 100%; height: auto; aspect-ratio: 160 / 88; object-fit: cover; border-radius: 4px; background: #f3f4f6; }
+.basemap-name { font-size: 14px; line-height: 1.3; color: #1f2937; padding: 0 4px; }
+.basemap-option[aria-pressed="true"] .basemap-name { color: #1d4ed8; font-weight: 600; }
+.basemap-meta { font-size: 12px; line-height: 1.3; color: #6b7280; padding: 0 4px 4px; }
+@media (max-width: 640px) {
+    /* keep the right-hand button column clear so the menu can be closed */
+    .basemap-panel { position: fixed !important; top: 16px !important; left: 16px !important; right: 72px !important; width: auto; max-height: calc(100vh - 32px); margin: 0 !important; }
+}
+/* A tooltip should not cover an open menu */
+[aria-expanded="true"][data-tip]::after { content: none !important; }

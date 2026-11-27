@@ -14,7 +14,7 @@ await p.goto(BASE); await p.waitForTimeout(900);
 check('maplibre not loaded at start', await p.evaluate(() => !window.maplibregl));
 await p.setInputFiles('#import-csv-input', OUT + '/import-th.csv'); await p.waitForTimeout(800);
 await p.click('#toggle-layers-btn');
-await p.locator('#layer-options button', { hasText: 'Vector · Liberty' }).click();
+await p.click('#layer-options [data-basemap^="Vector · Liberty"]');
 await p.waitForFunction(() => window.maplibregl && currentLayer.isVectorBasemap, null, { timeout: 20000 });
 await p.waitForFunction(() => { const g = currentLayer.getMaplibreMap(); return g.loaded() && g.areTilesLoaded(); }, null, { timeout: 30000 });
 await p.waitForTimeout(1500);
@@ -40,7 +40,7 @@ await tool('#export-image-btn'); await p.selectOption('#export-paper', 'screen')
 const [png2] = await Promise.all([p.waitForEvent('download', { timeout: 60000 }), p.click('#export-run-btn')]);
 await png2.saveAs(OUT + '/vector-screen.png');
 // switch back to raster
-await p.click('#toggle-layers-btn'); await p.locator('#layer-options button', { hasText: 'แผนที่ปกติ' }).click(); await p.waitForTimeout(800);
+await p.click('#toggle-layers-btn'); await p.click('#layer-options [data-basemap="แผนที่ปกติ"]'); await p.waitForTimeout(800);
 check('back to raster', await p.evaluate(() => !currentLayer.isVectorBasemap && currentBaseMapName === 'แผนที่ปกติ'));
 check('no gl canvas left', await p.locator('.leaflet-gl-layer').count() === 0);
 check('no page errors', errs.length === 0, errs.join(' | '));
