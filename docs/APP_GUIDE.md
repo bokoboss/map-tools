@@ -65,7 +65,8 @@
 
 ## แผนที่ vector (MapLibre)
 
-- ในรายการแผนที่พื้นหลังมี "Vector · Liberty", "Vector · Positron" และ "Vector · Bright" จาก OpenFreeMap (ฟรี ไม่ต้องใช้ key)
+- แผนที่ vector ฟรี ไม่ต้องใช้ key: Liberty, Bright, Positron (สว่าง สบายตา) จาก OpenFreeMap และ Colorful, Gray (เทา สบายตา), Gray Dark, Colorful Dark จาก VersaTiles
+- แผนที่ "แบบสบายตา (สว่าง/มืด)" ของ CARTO ถูกนำออก เพราะตอนนี้ต้องใช้ API key (tile ขึ้นข้อความ API KEY REQUIRED) และป้ายชื่อของแผนที่ Hybrid เปลี่ยนเป็นชั้นอ้างอิงของ Esri
 - แสดงผ่าน maplibre-gl 5.24.1 + maplibre-gl-leaflet 0.1.4 ซ้อนใน Leaflet เครื่องมือทุกตัวใช้ได้เหมือนเดิม
 - โหลดไลบรารีเฉพาะเมื่อเลือกแผนที่ vector ครั้งแรก หน้าเว็บปกติไม่ช้าลง
 - ชื่อสถานที่แสดงเป็นภาษาไทย (name:th ถ้าไม่มีใช้ชื่อท้องถิ่น) แทนแบบอังกฤษ+ไทยสองบรรทัด
