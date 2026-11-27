@@ -31,10 +31,6 @@ const baseMaps = {
 };
 let currentLayer = baseMaps["แผนที่ปกติ"];
 currentLayer.addTo(map);
-const basemapIdOrder = ['osm-standard', 'esri-imagery', 'esri-hybrid', 'opentopomap', 'osm-hot', 'carto-light', 'carto-dark'];
-const basemapNames = Object.keys(baseMaps);
-const basemapIdByName = Object.fromEntries(basemapNames.map((name, index) => [name, basemapIdOrder[index] || `basemap-${index + 1}`]));
-const basemapNameById = Object.fromEntries(Object.entries(basemapIdByName).map(([name, id]) => [id, name]));
 
 // --- App State ---
 let markers = [];
@@ -47,9 +43,69 @@ let newRadiusColor = '#3388ff';
 let colorPickerInstance = null;
 let colorPickerTarget = null;
 let searchResultMarker = null;
-let areLabelsVisible = false;
-let activeProject = MapToolsSchema.createEmptyProject({ name: 'Untitled Map' });
+let areLabelsVisible = true;
 const presetColors = ['#e11d48', '#f97316', '#f59e0b', '#84cc16', '#22c55e', '#10b981', '#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef'];
+// --- Survey point types ---
+// Codes are numbered per prefix; both intersection types share TMC numbering.
+const SURVEY_TYPES = {
+    general:      { label: 'หมุดทั่วไป (เลือกสีเอง)', prefix: '' },
+    tmc_signal:   { label: 'แยกสัญญาณไฟ (TMC)', prefix: 'TMC', color: '#E24B4A' },
+    tmc_unsignal: { label: 'แยกไม่มีสัญญาณไฟ (TMC)', prefix: 'TMC', color: '#D85A30' },
+    uturn:        { label: 'จุดกลับรถ (UT)', prefix: 'UT', color: '#BA7517' },
+    mb:           { label: 'นับรถบนช่วงถนน (MB)', prefix: 'MB', color: '#185FA5' },
+    ped:          { label: 'นับคนเดิน (PC)', prefix: 'PC', color: '#1D9E75' },
+    od:           { label: 'จุดสำรวจ OD', prefix: 'OD', color: '#534AB7' }
+};
+const SURVEY_TYPE_ORDER = Object.keys(SURVEY_TYPES);
+let legendVisible = true;
+
+function normalizeType(type) { return SURVEY_TYPES[type] ? type : 'general'; }
+
+function surveySymbolSvg(type, size = 28) {
+    const c = SURVEY_TYPES[type].color;
+    const open = `<svg width="${size}" height="${size}" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg">`;
+    switch (type) {
+        case 'tmc_signal':
+            return open + `<circle cx="14" cy="14" r="12" fill="${c}" stroke="#fff" stroke-width="2"/><rect x="10.5" y="6" width="7" height="16" rx="2" fill="#fff"/><circle cx="14" cy="9.5" r="1.8" fill="#E24B4A"/><circle cx="14" cy="14" r="1.8" fill="#EF9F27"/><circle cx="14" cy="18.5" r="1.8" fill="#639922"/></svg>`;
+        case 'tmc_unsignal':
+            return open + `<circle cx="14" cy="14" r="12" fill="${c}" stroke="#fff" stroke-width="2"/><path d="M14 6v16M6 14h16" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>`;
+        case 'uturn':
+            return open + `<circle cx="14" cy="14" r="12" fill="${c}" stroke="#fff" stroke-width="2"/><path d="M10 21V12a4 4 0 0 1 8 0v6" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round"/><path d="M15 15.5l3 3.5 3-3.5" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+        case 'mb':
+            return open + `<rect x="2" y="2" width="24" height="24" rx="4" fill="${c}" stroke="#fff" stroke-width="2"/><path d="M7 14h14M10 10.5 7 14l3 3.5M18 10.5l3 3.5-3 3.5" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+        case 'ped':
+            return open + `<path d="M14 2 26 24H2Z" fill="${c}" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><circle cx="14" cy="11" r="2" fill="#fff"/><path d="M14 13.5v4.5M11.5 21l2.5-3 2.5 3M11.5 15.5h5" stroke="#fff" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg>`;
+        case 'od':
+            return open + `<path d="M14 2 24.4 8v12L14 26 3.6 20V8Z" fill="${c}" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><text x="14" y="17.5" text-anchor="middle" font-size="9" font-weight="700" fill="#fff" font-family="Sarabun, sans-serif">OD</text></svg>`;
+        default:
+            return '';
+    }
+}
+
+function createSurveyIcon(type) {
+    return L.divIcon({ html: `<div class="survey-marker-icon">${surveySymbolSvg(type)}</div>`, className: '', iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14], tooltipAnchor: [13, 0] });
+}
+
+function iconForMarkerData(type, color) {
+    return normalizeType(type) === 'general' ? createMarkerIcon(color) : createSurveyIcon(type);
+}
+
+function displayName(marker) {
+    return [marker.code, marker.labelText].filter(Boolean).join(' ');
+}
+
+function nextCode(prefix, exclude) {
+    if (!prefix) return '';
+    const re = new RegExp(`^${prefix}-(\\d+)$`, 'i');
+    let max = 0;
+    markers.forEach(m => {
+        if (m === exclude) return;
+        const match = String(m.code || '').trim().match(re);
+        if (match) max = Math.max(max, parseInt(match[1], 10));
+    });
+    return `${prefix}-${String(max + 1).padStart(2, '0')}`;
+}
+
 let isAddingText = false;
 let textMarkerToEdit = null;
 let tempPinLatLng = null;
@@ -57,7 +113,6 @@ let tempPinLatLng = null;
 // Layer group to store all drawn items (polygons, polylines)
 const drawnItems = new L.FeatureGroup();
 map.addLayer(drawnItems);
-const transientSearchLayer = L.layerGroup().addTo(map);
 
 // --- Get DOM Elements ---
 const getEl = (id) => document.getElementById(id);
@@ -69,6 +124,8 @@ const cancelPinBtn = getEl('cancel-pin-btn'), deletePinBtn = getEl('delete-pin-b
 const toggleLabelsBtn = getEl('toggle-labels-btn'), toggleLabelsIcon = getEl('toggle-labels-icon'), deleteAllBtn = getEl('delete-all-btn');
 const modalTitle = getEl('modal-title'), markerColorSelector = getEl('marker-color-selector');
 const radiusManagementSection = getEl('radius-management-section');
+const pinTypeSelect = getEl('pin-type-select'), pinCodeRow = getEl('pin-code-row'), pinCodeInput = getEl('pin-code-input');
+const pinColorRow = getEl('pin-color-row'), toggleLegendBtn = getEl('toggle-legend-btn'), exportCsvBtn = getEl('export-csv-btn');
 const deleteConfirmModal = getEl('delete-confirm-modal'), cancelDeleteBtn = getEl('cancel-delete-btn'), confirmDeleteBtn = getEl('confirm-delete-btn');
 const deleteConfirmMessage = getEl('delete-confirm-message');
 const deleteAllConfirmModal = getEl('delete-all-confirm-modal'), cancelDeleteAllBtn = getEl('cancel-delete-all-btn'), confirmDeleteAllBtn = getEl('confirm-delete-all-btn');
@@ -100,37 +157,43 @@ const toggleInfoBtn = getEl('toggle-info-btn'), infoModal = getEl('info-modal'),
 
 
 // --- Helper Functions ---
-function createMarkerIcon(color) {
-    const svg = `<div class="custom-marker-icon"><svg width="25" height="41" viewBox="0 0 25 41" xmlns="http://www.w3.org/2000/svg"><path d="M12.5 0C5.596 0 0 5.596 0 12.5 0 19.404 12.5 41 12.5 41S25 19.404 25 12.5C25 5.596 19.404 0 12.5 0z" fill="${color}"/><circle cx="12.5" cy="12.5" r="4.5" fill="white"/></svg></div>`;
-    return L.divIcon({ html: svg, className: '', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -36] });
-}
-
+// Escape user/remote text before it is placed into HTML (labels, search results, loaded files).
 function escapeHtml(value) {
-    return String(value)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
+    return String(value ?? '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-function createTextIcon(text, rotation) {
-    const safeRotation = Number.isFinite(Number(rotation)) ? Number(rotation) : 0;
-    return L.divIcon({
-        className: 'text-label-icon',
-        html: `<div style="transform: rotate(${safeRotation}deg);">${escapeHtml(text)}</div>`
-    });
+function safeColor(value, fallback = '#3388ff') {
+    return /^#[0-9a-f]{3,8}$/i.test(String(value || '')) ? value : fallback;
+}
+
+function showToast(message) {
+    let toast = getEl('app-toast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'app-toast';
+        toast.setAttribute('role', 'status');
+        document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.classList.add('visible');
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(() => toast.classList.remove('visible'), 2600);
+}
+
+function createMarkerIcon(color) {
+    color = safeColor(color, '#2563eb');
+    const svg = `<div class="custom-marker-icon"><svg width="25" height="41" viewBox="0 0 25 41" xmlns="http://www.w3.org/2000/svg"><path d="M12.5 0C5.596 0 0 5.596 0 12.5 0 19.404 12.5 41 12.5 41S25 19.404 25 12.5C25 5.596 19.404 0 12.5 0z" fill="${color}"/><circle cx="12.5" cy="12.5" r="4.5" fill="white"/></svg></div>`;
+    return L.divIcon({ html: svg, className: '', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -36], tooltipAnchor: [10, -27] });
 }
 
 function createPopupContent(marker) {
     const markerId = L.Util.stamp(marker);
-    const container = document.createElement('div');
-    container.className = 'editable-popup-text';
-    const label = document.createElement('b');
-    label.textContent = marker.labelText || '';
-    container.appendChild(label);
-    container.addEventListener('dblclick', () => window.startEdit(markerId));
-    return container;
+    const code = marker.code ? `<b>${escapeHtml(marker.code)}</b>` : '';
+    const label = marker.labelText ? (code ? ` ${escapeHtml(marker.labelText)}` : `<b>${escapeHtml(marker.labelText)}</b>`) : '';
+    const body = code || label ? `${code}${label}` : `<i class="text-gray-500">${escapeHtml(SURVEY_TYPES[normalizeType(marker.pointType)].label)} (ไม่มีชื่อ)</i>`;
+    return `<div class="editable-popup-text" ondblclick="startEdit(${markerId})">${body}</div>`;
 }
 
 function formatArea(area) {
@@ -161,6 +224,7 @@ window.startEdit = function(markerId) {
         pinLabelInput.value = markerToEdit.labelText;
         selectedColor = markerToEdit.markerColor;
         markerColorSelector.style.backgroundColor = selectedColor;
+        setPinTypeUI(markerToEdit.pointType, markerToEdit.code);
         deletePinBtn.classList.remove('hidden');
         radiusManagementSection.classList.remove('hidden');
         pinModal.classList.remove('hidden');
@@ -173,13 +237,15 @@ function drawCirclesForMarker(marker) {
     const latlng = marker.getLatLng();
     marker.circleLayerGroup.clearLayers();
     marker.radii.forEach(radius => {
-        L.circle(latlng, {
+        const ring = L.circle(latlng, {
             renderer: canvasRenderer,
             radius: radius.distance,
-            color: radius.color,
-            fillColor: radius.color,
+            color: safeColor(radius.color),
+            fillColor: safeColor(radius.color),
             fillOpacity: 0.2
         }).addTo(marker.circleLayerGroup);
+        // Hover shows which pin/ring this is; it is not part of the exported image.
+        ring.bindTooltip(`${escapeHtml(displayName(marker) || SURVEY_TYPES[normalizeType(marker.pointType)].label)} · ${radius.distance.toLocaleString()} ม.`, { sticky: true });
     });
 }
 
@@ -191,7 +257,7 @@ function renderRadiusList() {
         item.className = 'flex items-center justify-between p-2 bg-gray-100 rounded-lg';
         item.innerHTML = `
             <div class="flex items-center space-x-3">
-                <button class="w-6 h-6 rounded border border-gray-300" style="background-color: ${radius.color};" data-id="${radius.id}" data-action="edit-color"></button>
+                <button class="w-6 h-6 rounded border border-gray-300" style="background-color: ${safeColor(radius.color)};" data-id="${radius.id}" data-action="edit-color"></button>
                 <span>${radius.distance.toLocaleString()} เมตร</span>
             </div>
             <div class="flex items-center space-x-3">
@@ -213,6 +279,64 @@ function resetRadiusForm() {
     cancelEditRadiusBtn.classList.add('hidden');
 }
 
+// --- Permanent labels beside pins (code bold + name); hidden with the label toggle ---
+function refreshMarkerLabel(marker) {
+    marker.unbindTooltip();
+    const code = marker.code ? `<b>${escapeHtml(marker.code)}</b>` : '';
+    const name = marker.labelText ? escapeHtml(marker.labelText) : '';
+    if (!code && !name) return;
+    marker.bindTooltip(code && name ? `${code} ${name}` : (code || name), {
+        permanent: true, direction: 'right', className: 'pin-label', interactive: false
+    });
+}
+
+function applyLabelVisibility() {
+    map.getContainer().classList.toggle('labels-hidden', !areLabelsVisible);
+    toggleLabelsIcon.innerHTML = areLabelsVisible
+        ? `<path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />`
+        : `<path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />`;
+    toggleLabelsBtn.title = areLabelsVisible ? 'ซ่อนป้ายชื่อหมุด' : 'แสดงป้ายชื่อหมุด';
+}
+
+// --- Point type UI ---
+let lastPointType = 'general';
+let autoFilledCode = '';
+SURVEY_TYPE_ORDER.forEach(key => {
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = SURVEY_TYPES[key].label;
+    pinTypeSelect.appendChild(opt);
+});
+
+function setPinTypeUI(type, existingCode) {
+    type = normalizeType(type);
+    pinTypeSelect.value = type;
+    const isGeneral = type === 'general';
+    pinCodeRow.classList.toggle('hidden', isGeneral);
+    pinColorRow.classList.toggle('hidden', !isGeneral);
+    if (existingCode !== null && existingCode !== undefined) {
+        pinCodeInput.value = existingCode;
+        autoFilledCode = '';
+    } else {
+        autoFilledCode = isGeneral ? '' : nextCode(SURVEY_TYPES[type].prefix, markerToEdit);
+        pinCodeInput.value = autoFilledCode;
+    }
+}
+
+pinTypeSelect.addEventListener('change', () => {
+    const type = normalizeType(pinTypeSelect.value);
+    const current = pinCodeInput.value.trim();
+    // Re-number only when the code is empty or still the one filled in automatically.
+    const keep = current && current !== autoFilledCode ? current : null;
+    if (markerToEdit && keep === null && markerToEdit.code && SURVEY_TYPES[type].prefix &&
+        String(markerToEdit.code).toUpperCase().startsWith(SURVEY_TYPES[type].prefix + '-')) {
+        setPinTypeUI(type, markerToEdit.code);
+    } else {
+        setPinTypeUI(type, keep);
+    }
+});
+pinCodeInput.addEventListener('keyup', e => { if (e.key === 'Enter') { e.preventDefault(); savePinBtn.click(); } });
+
 // --- Modal Logic ---
 function showCreateModal(latlng) {
     markerToEdit = null;
@@ -222,6 +346,7 @@ function showCreateModal(latlng) {
     radiusManagementSection.classList.add('hidden');
     selectedColor = '#2563eb';
     markerColorSelector.style.backgroundColor = selectedColor;
+    setPinTypeUI(lastPointType, null);
     deletePinBtn.classList.add('hidden');
     pinModal.classList.remove('hidden');
     pinLabelInput.focus();
@@ -257,25 +382,34 @@ closeInfoBtn.addEventListener('click', () => infoModal.classList.add('hidden'));
 
 savePinBtn.addEventListener('click', function() {
     const labelText = pinLabelInput.value.trim();
-    if (!labelText) return;
+    const pointType = normalizeType(pinTypeSelect.value);
+    const code = pointType === 'general' ? '' : pinCodeInput.value.trim();
+    const markerColor = pointType === 'general' ? selectedColor : SURVEY_TYPES[pointType].color;
 
     if (markerToEdit) {
         // Editing an existing marker
         markerToEdit.labelText = labelText;
-        markerToEdit.projectName = labelText;
-        markerToEdit.markerColor = selectedColor;
-        markerToEdit.setIcon(createMarkerIcon(selectedColor));
+        markerToEdit.markerColor = markerColor;
+        markerToEdit.pointType = pointType;
+        markerToEdit.code = code;
+        markerToEdit.setIcon(iconForMarkerData(pointType, markerColor));
         markerToEdit.setPopupContent(createPopupContent(markerToEdit));
+        refreshMarkerLabel(markerToEdit);
+        drawCirclesForMarker(markerToEdit);
     } else {
         // Creating a new marker
         createMarkerFromData({
             labelText: labelText,
-            markerColor: selectedColor,
+            markerColor: markerColor,
+            pointType: pointType,
+            code: code,
             latlng: tempPinLatLng || map.getCenter(), // Fallback to map center if no latlng is provided
             radii: []
         });
     }
+    lastPointType = pointType;
     hideAllModals();
+    updateLegend();
 });
 
 // --- Radius Modal Logic ---
@@ -291,7 +425,10 @@ cancelEditRadiusBtn.addEventListener('click', resetRadiusForm);
 
 addRadiusBtn.addEventListener('click', () => {
     const distance = parseFloat(radiusInput.value);
-    if (!markerToEdit || !(distance >= 0)) return;
+    if (!markerToEdit || !(distance > 0)) {
+        showToast('กรุณาใส่ระยะรัศมีมากกว่า 0 เมตร');
+        return;
+    }
 
     if (radiusToEditId) {
         const radius = markerToEdit.radii.find(r => r.id === radiusToEditId);
@@ -357,6 +494,7 @@ confirmDeleteBtn.addEventListener('click', () => {
         map.removeLayer(marker);
         const index = markers.findIndex(m => L.Util.stamp(m) === L.Util.stamp(marker));
         if (index > -1) markers.splice(index, 1);
+        updateLegend();
     } else if (itemToDelete.type === 'shape') {
         drawnItems.removeLayer(itemToDelete.layer);
     }
@@ -377,8 +515,7 @@ function clearMap() {
     });
     markers.length = 0;
     drawnItems.clearLayers();
-    transientSearchLayer.clearLayers();
-    searchResultMarker = null;
+    updateLegend();
 }
 confirmDeleteAllBtn.addEventListener('click', () => {
     clearMap();
@@ -386,18 +523,11 @@ confirmDeleteAllBtn.addEventListener('click', () => {
 });
 
 pinLabelInput.addEventListener('keyup', e => { if (e.key === 'Enter') { e.preventDefault(); savePinBtn.click(); } });
+pinLabelInput.placeholder = 'ไม่บังคับ';
 
 toggleLabelsBtn.addEventListener('click', () => {
     areLabelsVisible = !areLabelsVisible;
-    if (areLabelsVisible) {
-        markers.forEach(marker => marker.openPopup());
-        toggleLabelsIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />`;
-        toggleLabelsBtn.title = "ซ่อนข้อความ";
-    } else {
-        markers.forEach(marker => marker.closePopup());
-        toggleLabelsIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />`;
-        toggleLabelsBtn.title = "แสดงข้อความ";
-    }
+    applyLabelVisibility();
 });
 
 // --- Color Picker Logic ---
@@ -611,7 +741,7 @@ function bindShapePopup(layer) {
                 const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x) * 180 / Math.PI;
                 const newIcon = L.divIcon({
                     className: 'arrow-head',
-                    html: `<div style="transform: rotate(${angle + 90}deg); transform-origin: center center;">${head.getIcon().options.html.match(/<svg[\s\S]*<\/svg>/)[0]}</div>`,
+                    html: `<div style="transform: rotate(${angle + 90}deg); transform-origin: center center;">${head.getIcon().options.html.match(/<svg.*<\/svg>/)[0]}</div>`,
                     iconSize: [24, 24],
                     iconAnchor: [12, 12]
                 });
@@ -643,6 +773,19 @@ function showContextMenu(point, menuItems) {
             const div = document.createElement('div');
             div.className = 'info-item';
             div.innerHTML = item.text;
+            if (item.copyText) {
+                div.classList.add('copyable');
+                div.title = 'คลิกเพื่อคัดลอกพิกัด';
+                div.onclick = () => {
+                    const done = () => showToast(`คัดลอกพิกัดแล้ว: ${item.copyText}`);
+                    if (navigator.clipboard) {
+                        navigator.clipboard.writeText(item.copyText).then(done, () => showToast(item.copyText));
+                    } else {
+                        showToast(item.copyText);
+                    }
+                    hideContextMenu();
+                };
+            }
             contextMenu.appendChild(div);
         } else {
             const link = document.createElement('a');
@@ -658,6 +801,10 @@ function showContextMenu(point, menuItems) {
     contextMenu.style.left = `${point.x}px`;
     contextMenu.style.top = `${point.y}px`;
     contextMenu.classList.remove('hidden');
+    // Keep the menu inside the viewport near screen edges.
+    const rect = contextMenu.getBoundingClientRect();
+    if (rect.right > window.innerWidth - 8) contextMenu.style.left = `${Math.max(8, point.x - rect.width)}px`;
+    if (rect.bottom > window.innerHeight - 8) contextMenu.style.top = `${Math.max(8, point.y - rect.height)}px`;
 }
 
 function hideContextMenu() {
@@ -675,7 +822,7 @@ map.on('contextmenu', function(e) {
     const menuItems = [
         { text: 'เพิ่มหมุดที่นี่', callback: () => showCreateModal(e.latlng) },
         { isSeparator: true },
-        { text: `พิกัด: ${lat}, ${lon}`, isInfo: true },
+        { text: `พิกัด: ${lat}, ${lon} <span class="copy-hint">(คลิกเพื่อคัดลอก)</span>`, isInfo: true, copyText: `${lat}, ${lon}` },
         { text: '<i>กำลังค้นหาที่อยู่...</i>', isInfo: true, id: 'address-info' }
     ];
     
@@ -754,191 +901,231 @@ function addLayerContextMenu(layer) {
 
 // --- Save/Load/Export Logic ---
 function createMarkerFromData(data) {
-    const transient = Boolean(data.transient);
-    const targetGroup = transient ? transientSearchLayer : map;
-    const newMarker = L.marker(data.latlng, { draggable: true, icon: createMarkerIcon(data.markerColor || '#2563eb') }).addTo(targetGroup);
-    newMarker.projectFeatureId = data.id || MapToolsSchema.createId('feature');
-    newMarker.projectName = data.name || data.labelText || 'Marker';
-    newMarker.labelText = data.labelText || data.name || '';
-    newMarker.markerColor = data.markerColor || '#2563eb';
+    const pointType = normalizeType(data.pointType);
+    const newMarker = L.marker(data.latlng, { draggable: true, icon: iconForMarkerData(pointType, data.markerColor) }).addTo(map);
+    newMarker.labelText = data.labelText;
+    newMarker.markerColor = data.markerColor;
+    newMarker.pointType = pointType;
+    newMarker.code = pointType === 'general' ? '' : String(data.code || '');
     newMarker.radii = data.radii || [];
-    newMarker.circleLayerGroup = L.layerGroup().addTo(targetGroup);
+    newMarker.circleLayerGroup = L.layerGroup().addTo(map);
     newMarker.bindPopup(createPopupContent(newMarker), { autoClose: false, closeButton: false });
+    refreshMarkerLabel(newMarker);
     
     newMarker.on('dragstart', e => e.target.closePopup());
     newMarker.on('drag', e => drawCirclesForMarker(e.target));
     
     addLayerContextMenu(newMarker);
     drawCirclesForMarker(newMarker);
-    if (!transient) markers.push(newMarker);
+    markers.push(newMarker);
     return newMarker;
 }
 
-function toCoordinate(latlng) {
-    return [Number(latlng.lng), Number(latlng.lat)];
-}
-
-function toLatLng(coordinate) {
-    return [coordinate[1], coordinate[0]];
-}
-
-function toLatLngs(coordinates) {
-    return coordinates.map(toLatLng);
-}
-
-function styleFromLayer(layer, defaults) {
-    const options = layer.options || {};
-    const style = { ...(defaults || {}) };
-    if (options.color !== undefined) style.color = options.color;
-    if (options.fillColor !== undefined && options.fillColor !== null) style.fillColor = options.fillColor;
-    if (options.weight !== undefined) style.weightPx = options.weight;
-    if (options.opacity !== undefined) style.opacity = options.opacity;
-    if (options.fillOpacity !== undefined) style.fillOpacity = options.fillOpacity;
-    return style;
-}
-
-function featureCommon(layer, type, name, style, properties) {
-    return {
-        id: layer.projectFeatureId || MapToolsSchema.createId('feature'),
-        type,
-        name: layer.projectName || name,
-        groupId: null,
-        visible: true,
-        locked: false,
-        geometry: null,
-        style,
-        properties: properties || {}
-    };
-}
-
-function featureFromMarker(marker) {
-    const feature = featureCommon(marker, 'marker', marker.labelText || 'Marker', { color: marker.markerColor, symbolId: 'pin' }, {
-        radii: (marker.radii || []).map(radius => ({
-            id: String(radius.id || MapToolsSchema.createId('radius')),
-            distanceM: Number(radius.distanceM ?? radius.distance),
-            color: radius.color,
-            fillOpacity: radius.fillOpacity === undefined ? 0.2 : Number(radius.fillOpacity)
-        }))
-    });
-    feature.geometry = { kind: 'point', coordinates: toCoordinate(marker.getLatLng()) };
-    return feature;
-}
-
-function featureFromLayer(layer) {
-    if (layer.isTextLabel) {
-        const feature = featureCommon(layer, 'text', layer.labelText || 'Text', { color: '#1f2937', fontSizePx: 14, fontWeight: 600, rotationDeg: Number(layer.rotation || 0), halo: true }, { text: layer.labelText || '' });
-        feature.geometry = { kind: 'point', coordinates: toCoordinate(layer.getLatLng()) };
-        return feature;
-    }
-    if (layer.isArrow) {
-        const line = layer.getLayers().find(item => item instanceof L.Polyline);
-        const feature = featureCommon(layer, 'arrow', 'Arrow', styleFromLayer(line, { arrowHead: 'end' }), {});
-        feature.geometry = { kind: 'lineString', coordinates: line.getLatLngs().map(toCoordinate) };
-        return feature;
-    }
-    if (layer instanceof L.Circle) {
-        const feature = featureCommon(layer, 'circle', 'Circle', styleFromLayer(layer), {});
-        feature.geometry = { kind: 'circle', center: toCoordinate(layer.getLatLng()), radiusM: Number(layer.getRadius()) };
-        return feature;
-    }
-    if (layer instanceof L.Rectangle) {
-        const bounds = layer.getBounds();
-        const feature = featureCommon(layer, 'rectangle', 'Rectangle', styleFromLayer(layer), {});
-        feature.geometry = { kind: 'bounds', southWest: toCoordinate(bounds.getSouthWest()), northEast: toCoordinate(bounds.getNorthEast()) };
-        return feature;
-    }
-    if (layer instanceof L.Polygon) {
-        const feature = featureCommon(layer, 'polygon', 'Polygon', styleFromLayer(layer), {});
-        feature.geometry = { kind: 'polygon', coordinates: layer.getLatLngs()[0].map(toCoordinate) };
-        return feature;
-    }
-    if (layer instanceof L.Polyline) {
-        const feature = featureCommon(layer, 'polyline', 'Polyline', styleFromLayer(layer), {});
-        feature.geometry = { kind: 'lineString', coordinates: layer.getLatLngs().map(toCoordinate) };
-        return feature;
-    }
-    return null;
-}
-
-function createArrowLayer(latlngs, color, weight) {
-    const line = L.polyline(latlngs, { color: color || '#10b981', weight: weight || 3 });
-    const arrowhead = L.divIcon({
+// --- Shape factories (shared by drawing, opening files and autosave restore) ---
+function arrowHeadIcon(color, angle) {
+    return L.divIcon({
         className: 'arrow-head',
-        html: `<div><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="${color || '#10b981'}" width="24px" height="24px"><path d="M0 0h24v24H0z" fill="none"/><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/></svg></div>`,
+        html: `<div style="transform: rotate(${angle + 90}deg); transform-origin: center center;">
+                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="${safeColor(color, '#10b981')}" width="24px" height="24px">
+                       <path d="M0 0h24v24H0z" fill="none"/><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/>
+                   </svg>
+               </div>`,
         iconSize: [24, 24],
         iconAnchor: [12, 12]
     });
-    return L.featureGroup([line, L.marker(latlngs[latlngs.length - 1], { icon: arrowhead })]);
 }
 
-function createTextLayerFromFeature(feature) {
-    const layer = L.marker(toLatLng(feature.geometry.coordinates), { icon: createTextIcon(feature.properties.text, feature.style.rotationDeg), draggable: true }).addTo(drawnItems);
-    layer.isTextLabel = true;
-    layer.projectFeatureId = feature.id;
-    layer.projectName = feature.name;
-    layer.labelText = feature.properties.text;
-    layer.rotation = Number(feature.style.rotationDeg || 0);
-    addLayerContextMenu(layer);
-    return layer;
+function createArrowFromLine(line) {
+    const latlngs = line.getLatLngs();
+    const p1 = map.latLngToContainerPoint(latlngs[latlngs.length - 2]);
+    const p2 = map.latLngToContainerPoint(latlngs[latlngs.length - 1]);
+    const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x) * 180 / Math.PI;
+    const arrowMarker = L.marker(latlngs[latlngs.length - 1], { icon: arrowHeadIcon(line.options.color, angle) });
+    const arrowGroup = L.featureGroup([line, arrowMarker]).addTo(drawnItems);
+    arrowGroup.isArrow = true;
+    addLayerContextMenu(arrowGroup);
+    bindShapePopup(arrowGroup);
+    return arrowGroup;
 }
 
-function renderFeature(feature) {
-    if (feature.type === 'marker') {
-        return createMarkerFromData({ id: feature.id, name: feature.name, labelText: feature.name, markerColor: feature.style.color, latlng: toLatLng(feature.geometry.coordinates), radii: feature.properties.radii.map(radius => ({ id: radius.id, distance: radius.distanceM, color: radius.color, fillOpacity: radius.fillOpacity })) });
-    }
-    if (feature.type === 'text') return createTextLayerFromFeature(feature);
-    const style = { color: feature.style.color, weight: feature.style.weightPx, opacity: feature.style.opacity, fillColor: feature.style.fillColor, fillOpacity: feature.style.fillOpacity };
-    let layer;
-    if (feature.type === 'polyline') layer = L.polyline(toLatLngs(feature.geometry.coordinates), style);
-    else if (feature.type === 'polygon') layer = L.polygon(toLatLngs(feature.geometry.coordinates), style);
-    else if (feature.type === 'rectangle') layer = L.rectangle([toLatLng(feature.geometry.southWest), toLatLng(feature.geometry.northEast)], style);
-    else if (feature.type === 'circle') layer = L.circle(toLatLng(feature.geometry.center), { ...style, radius: feature.geometry.radiusM });
-    else if (feature.type === 'arrow') layer = createArrowLayer(toLatLngs(feature.geometry.coordinates), feature.style.color, feature.style.weightPx);
-    if (!layer) return null;
-    layer.projectFeatureId = feature.id;
-    layer.projectName = feature.name;
-    layer.isArrow = feature.type === 'arrow';
+function textLabelIcon(text, rotation) {
+    return L.divIcon({
+        className: 'text-label-icon',
+        html: `<div style="transform: rotate(${Number(rotation) || 0}deg);">${escapeHtml(text)}</div>`
+    });
+}
+
+function createTextLabel(latlng, text, rotation = 0) {
+    const textMarker = L.marker(latlng, { icon: textLabelIcon(text, rotation), draggable: true }).addTo(drawnItems);
+    textMarker.isTextLabel = true;
+    textMarker.labelText = text;
+    textMarker.rotation = Number(rotation) || 0;
+    addLayerContextMenu(textMarker);
+    return textMarker;
+}
+
+function addShapeLayer(layer) {
     drawnItems.addLayer(layer);
     addLayerContextMenu(layer);
     bindShapePopup(layer);
     return layer;
 }
 
-function captureProjectDocument() {
-    const currentBasemapName = basemapNames.find(name => baseMaps[name] === currentLayer);
-    const document = MapToolsSchema.createEmptyProject({ projectId: activeProject.project.id, name: activeProject.project.name, center: toCoordinate(map.getCenter()), zoom: map.getZoom(), basemapId: basemapIdByName[currentBasemapName] || 'osm-standard' });
-    document.project.createdAt = activeProject.project.createdAt;
-    document.project.updatedAt = new Date().toISOString();
-    document.features = markers.map(featureFromMarker);
+// --- Project serialisation ---
+// Format version 2 keeps every feature type (pins + radii, text + rotation, arrows,
+// circles, lines, polygons/rectangles). "drawnShapes" stays as plain GeoJSON for GIS use
+// and for files written by the original version, which are still accepted on open.
+const PROJECT_FORMAT_VERSION = 2;
+const AUTOSAVE_KEY = 'map-tools-classic:autosave';
+
+function latLngPlain(ll) { return { lat: ll.lat, lng: ll.lng }; }
+
+function serializeProject() {
+    const shapes = [];
     drawnItems.eachLayer(layer => {
-        const feature = featureFromLayer(layer);
-        if (feature) document.features.push(feature);
+        if (layer.isTextLabel) {
+            shapes.push({ kind: 'text', latlng: latLngPlain(layer.getLatLng()), text: layer.labelText, rotation: Number(layer.rotation) || 0 });
+        } else if (layer.isArrow) {
+            const line = layer.getLayers().find(l => l instanceof L.Polyline);
+            if (line) shapes.push({ kind: 'arrow', latlngs: line.getLatLngs().map(latLngPlain), color: line.options.color });
+        } else if (layer instanceof L.Circle) {
+            shapes.push({ kind: 'circle', center: latLngPlain(layer.getLatLng()), radius: layer.getRadius(), color: layer.options.color, fillColor: layer.options.fillColor });
+        } else if (layer instanceof L.Polyline) {
+            shapes.push({ kind: 'geojson', feature: layer.toGeoJSON(), style: { color: layer.options.color, fillColor: layer.options.fillColor } });
+        }
     });
-    return MapToolsSchema.normalizeProject(document);
+
+    return {
+        app: 'map-tools-classic',
+        version: PROJECT_FORMAT_VERSION,
+        savedAt: new Date().toISOString(),
+        view: { center: latLngPlain(map.getCenter()), zoom: map.getZoom() },
+        markers: markers.map(marker => ({
+            labelText: marker.labelText,
+            markerColor: marker.markerColor,
+            pointType: marker.pointType || 'general',
+            code: marker.code || '',
+            latlng: latLngPlain(marker.getLatLng()),
+            radii: marker.radii
+        })),
+        shapes,
+        drawnShapes: drawnItems.toGeoJSON()
+    };
 }
 
-function applyProjectDocument(document) {
+function loadShapesV2(shapes) {
+    shapes.forEach(shape => {
+        try {
+            if (shape.kind === 'text') {
+                createTextLabel(shape.latlng, String(shape.text ?? ''), shape.rotation);
+            } else if (shape.kind === 'arrow' && Array.isArray(shape.latlngs) && shape.latlngs.length >= 2) {
+                const line = L.polyline(shape.latlngs, { color: safeColor(shape.color, '#10b981'), weight: 3 });
+                createArrowFromLine(line);
+            } else if (shape.kind === 'circle') {
+                const color = safeColor(shape.color, '#f59e0b');
+                addShapeLayer(L.circle(shape.center, { radius: Number(shape.radius) || 0, color, fillColor: safeColor(shape.fillColor, color), weight: 4 }));
+            } else if (shape.kind === 'geojson' && shape.feature) {
+                const style = { weight: 4, ...(shape.style || {}) };
+                style.color = safeColor(style.color);
+                style.fillColor = safeColor(style.fillColor, style.color);
+                L.geoJSON(shape.feature, { style: () => style }).eachLayer(addShapeLayer);
+            }
+        } catch (err) {
+            console.warn('Skipped an unreadable shape', shape, err);
+        }
+    });
+}
+
+function loadShapesLegacy(drawnShapes) {
+    // Original files flatten an arrow into a LineString plus a bare Point at its last vertex.
+    // Re-pair them so arrows come back as arrows instead of stray text labels.
+    const features = (drawnShapes && drawnShapes.features) || [];
+    const sameCoord = (a, b) => Math.abs(a[0] - b[0]) < 1e-9 && Math.abs(a[1] - b[1]) < 1e-9;
+    const arrowHeads = new Set();
+    const arrowLines = new Set();
+    features.forEach(pt => {
+        if (!pt.geometry || pt.geometry.type !== 'Point' || (pt.properties && pt.properties.radius)) return;
+        const line = features.find(f => f.geometry && f.geometry.type === 'LineString' && !arrowLines.has(f)
+            && sameCoord(f.geometry.coordinates[f.geometry.coordinates.length - 1], pt.geometry.coordinates));
+        if (line) { arrowHeads.add(pt); arrowLines.add(line); }
+    });
+    arrowLines.forEach(f => {
+        const latlngs = f.geometry.coordinates.map(c => [c[1], c[0]]);
+        const color = safeColor(f.properties && f.properties.style && f.properties.style.color, '#10b981');
+        createArrowFromLine(L.polyline(latlngs, { color, weight: 3 }));
+    });
+    const rest = features.filter(f => !arrowHeads.has(f) && !arrowLines.has(f));
+
+    L.geoJSON({ type: 'FeatureCollection', features: rest }, {
+        style: function (feature) {
+            const defaultStyle = {
+                color: feature.geometry.type === 'Polygon' ? '#f06eaa' : '#3388ff',
+                weight: 4
+            };
+            return { ...defaultStyle, ...(feature.properties && feature.properties.style) };
+        },
+        pointToLayer: function(feature, latlng) {
+            if (feature.properties && feature.properties.radius) {
+                return L.circle(latlng, feature.properties.radius, feature.properties.style);
+            }
+            return L.marker(latlng);
+        },
+        onEachFeature: function (feature, layer) {
+            if (layer instanceof L.Marker) {
+                // Original files stored text labels as bare points without their text.
+                createTextLabel(layer.getLatLng(), (feature.properties && feature.properties.text) || 'ข้อความ');
+                return;
+            }
+            addShapeLayer(layer);
+        }
+    });
+}
+
+function loadProject(data, { fitView = false } = {}) {
     clearMap();
-    document.features.forEach(renderFeature);
-    map.setView(toLatLng(document.mapView.center), document.mapView.zoom);
-    const basemapName = basemapNameById[document.mapView.basemapId];
-    if (basemapName && baseMaps[basemapName] !== currentLayer) {
-        map.removeLayer(currentLayer);
-        currentLayer = baseMaps[basemapName];
-        map.addLayer(currentLayer);
-    } else if (!basemapName) {
-        console.warn(`Unknown basemap "${document.mapView.basemapId}"; using the current basemap.`);
+    if (Array.isArray(data.markers)) {
+        data.markers.forEach(markerData => {
+            createMarkerFromData({
+                labelText: String(markerData.labelText ?? ''),
+                markerColor: safeColor(markerData.markerColor, '#2563eb'),
+                pointType: normalizeType(markerData.pointType),
+                code: String(markerData.code ?? ''),
+                latlng: markerData.latlng,
+                radii: Array.isArray(markerData.radii)
+                    ? markerData.radii.filter(r => Number(r.distance) > 0).map(r => ({ id: r.id, distance: Number(r.distance), color: safeColor(r.color) }))
+                    : []
+            });
+        });
     }
-    activeProject = document;
+    if (Array.isArray(data.shapes)) {
+        loadShapesV2(data.shapes);
+    } else if (data.drawnShapes) {
+        loadShapesLegacy(data.drawnShapes);
+    }
+    updateLegend();
+    if (fitView && data.view && data.view.center) {
+        map.setView(data.view.center, data.view.zoom || map.getZoom());
+    } else if (fitView) {
+        const bounds = L.latLngBounds([]);
+        markers.forEach(m => bounds.extend(m.getLatLng()));
+        drawnItems.eachLayer(l => { if (l.getBounds) bounds.extend(l.getBounds()); else if (l.getLatLng) bounds.extend(l.getLatLng()); });
+        if (bounds.isValid()) map.fitBounds(bounds, { padding: [40, 40], maxZoom: 17 });
+    }
+}
+
+function projectFileName() {
+    const d = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    return `map-project-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.json`;
 }
 
 saveProjectBtn.addEventListener('click', () => {
-    const jsonString = MapToolsSchema.serializeProject(captureProjectDocument());
+    const jsonString = JSON.stringify(serializeProject(), null, 2);
     const blob = new Blob([jsonString], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'map-project-v2.json';
+    a.download = projectFileName();
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -956,42 +1143,274 @@ fileInput.addEventListener('change', (event) => {
     const reader = new FileReader();
     reader.onload = (e) => {
         try {
-            const result = MapToolsSchema.deserializeProject(e.target.result);
-            applyProjectDocument(result.document);
-            if (result.warnings.length) console.warn('Project loaded with warnings:', result.warnings);
+            const data = JSON.parse(e.target.result);
+            loadProject(data, { fitView: true });
+            showToast(`เปิดโปรเจกต์แล้ว: ${file.name}`);
         } catch (error) {
             console.error("Error loading project:", error);
-            alert(`Project file is invalid or could not be read.\n${error.message}`);
+            alert('ไฟล์ไม่ถูกต้องหรือไม่สามารถอ่านข้อมูลได้');
         }
     };
     reader.readAsText(file);
     fileInput.value = '';
 });
 
-exportImageBtn.addEventListener('click', () => {
+// --- Autosave (browser only) ---
+// Keeps the latest work in this browser so a refresh or closed tab does not lose it.
+// "Save project" files remain the way to keep or share a project.
+let lastAutosave = null;
+function autosaveNow() {
+    try {
+        const data = serializeProject();
+        const isEmpty = data.markers.length === 0 && data.shapes.length === 0;
+        const payload = isEmpty ? '' : JSON.stringify({ ...data, savedAt: undefined, view: undefined });
+        if (payload === lastAutosave) return;
+        lastAutosave = payload;
+        if (isEmpty) localStorage.removeItem(AUTOSAVE_KEY);
+        else localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(data));
+    } catch (err) {
+        // Storage may be unavailable (private mode, quota); the app keeps working without it.
+    }
+}
+
+function restoreAutosave() {
+    let raw = null;
+    try { raw = localStorage.getItem(AUTOSAVE_KEY); } catch (err) { return; }
+    if (!raw) return;
+    try {
+        const data = JSON.parse(raw);
+        loadProject(data, { fitView: true });
+        const when = data.savedAt ? new Date(data.savedAt).toLocaleString('th-TH') : '';
+        showToast(`กู้คืนงานล่าสุดในเบราว์เซอร์แล้ว${when ? ' (' + when + ')' : ''}`);
+    } catch (err) {
+        console.warn('Autosave could not be restored', err);
+    }
+}
+
+// --- Image export ---
+// Screen export keeps the original behaviour; paper sizes frame part of the map at a
+// chosen DPI and add title, north arrow and scale bar for reports.
+const PAPER_MM = { a4l: [297, 210], a4p: [210, 297], a3l: [420, 297], a3p: [297, 420] };
+const exportPanel = getEl('export-panel'), exportFrame = getEl('export-frame');
+const exportPaper = getEl('export-paper'), exportDpi = getEl('export-dpi'), exportTitle = getEl('export-title');
+const exportNorth = getEl('export-north'), exportScale = getEl('export-scale'), exportLegend = getEl('export-legend'), exportLabels = getEl('export-labels');
+const exportSizeInfo = getEl('export-size-info');
+
+const scaleControl = L.control.scale({ metric: true, imperial: false, position: 'bottomright', maxWidth: 160 }).addTo(map);
+
+function exportTargetPx() {
+    const paper = PAPER_MM[exportPaper.value];
+    if (!paper) return null;
+    const dpi = parseInt(exportDpi.value, 10) || 200;
+    return { w: Math.round(paper[0] / 25.4 * dpi), h: Math.round(paper[1] / 25.4 * dpi), dpi };
+}
+
+function layoutExportFrame() {
+    const paper = PAPER_MM[exportPaper.value];
+    exportDpi.disabled = !paper;
+    if (!paper) {
+        exportFrame.classList.add('hidden');
+        const r = map.getContainer().getBoundingClientRect();
+        exportSizeInfo.textContent = `${Math.round(r.width)} × ${Math.round(r.height)} px`;
+        return;
+    }
+    const panelBottom = exportPanel.getBoundingClientRect().bottom;
+    const margin = 24;
+    const availW = window.innerWidth - margin * 2;
+    const availH = window.innerHeight - panelBottom - margin * 2;
+    const ratio = paper[0] / paper[1];
+    let w = availW, h = w / ratio;
+    if (h > availH) { h = availH; w = h * ratio; }
+    exportFrame.style.width = `${Math.round(w)}px`;
+    exportFrame.style.height = `${Math.round(h)}px`;
+    exportFrame.style.left = `${Math.round((window.innerWidth - w) / 2)}px`;
+    exportFrame.style.top = `${Math.round(panelBottom + margin + (availH - h) / 2)}px`;
+    exportFrame.classList.remove('hidden');
+    const t = exportTargetPx();
+    exportSizeInfo.textContent = `${t.w} × ${t.h} px`;
+}
+
+function openExportPanel() {
+    stopAllDrawing();
+    hideContextMenu();
+    toolPanel.classList.add('hidden');
+    exportLegend.checked = legendVisible;
+    exportLabels.checked = areLabelsVisible;
+    exportPanel.classList.remove('hidden');
+    document.body.classList.add('export-framing');
+    layoutExportFrame();
+}
+
+function closeExportPanel() {
+    exportPanel.classList.add('hidden');
+    exportFrame.classList.add('hidden');
+    document.body.classList.remove('export-framing');
+}
+
+exportImageBtn.addEventListener('click', openExportPanel);
+getEl('export-cancel-btn').addEventListener('click', closeExportPanel);
+exportPaper.addEventListener('change', layoutExportFrame);
+exportDpi.addEventListener('change', layoutExportFrame);
+window.addEventListener('resize', () => { if (!exportPanel.classList.contains('hidden')) layoutExportFrame(); });
+
+function tileLayersOf(layer) {
+    if (!layer) return [];
+    if (layer instanceof L.GridLayer) return [layer];
+    if (layer.getLayers) return layer.getLayers().flatMap(tileLayersOf);
+    return [];
+}
+
+function waitForTiles(timeoutMs = 12000) {
+    const layers = tileLayersOf(currentLayer);
+    const start = Date.now();
+    return new Promise(resolve => {
+        (function check() {
+            const gl = currentLayer && currentLayer.isVectorBasemap && currentLayer.getMaplibreMap ? currentLayer.getMaplibreMap() : null;
+            const glBusy = gl ? !(gl.loaded() && gl.areTilesLoaded()) : false;
+            const busy = glBusy || layers.some(l => l.isLoading && l.isLoading());
+            if (!busy || Date.now() - start > timeoutMs) setTimeout(resolve, 300);
+            else setTimeout(check, 150);
+        })();
+    });
+}
+
+function makeExportControls(opts) {
+    const added = [];
+    if (opts.title) {
+        const c = L.control({ position: 'topleft' });
+        c.onAdd = () => {
+            const d = L.DomUtil.create('div', 'export-title-block');
+            const date = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+            d.innerHTML = `<div class="export-title-text">${escapeHtml(opts.title)}</div><div class="export-title-date">${escapeHtml(date)}</div>`;
+            return d;
+        };
+        c.addTo(map); added.push(c);
+    }
+    if (opts.north) {
+        const c = L.control({ position: 'topright' });
+        c.onAdd = () => {
+            const d = L.DomUtil.create('div', 'export-north');
+            d.innerHTML = `<svg width="44" height="56" viewBox="0 0 44 56" xmlns="http://www.w3.org/2000/svg"><text x="22" y="13" text-anchor="middle" font-size="13" font-weight="700" font-family="Sarabun, sans-serif" fill="#111827">N</text><path d="M22 17 L32 50 L22 43 L12 50 Z" fill="#fff" stroke="#111827" stroke-width="1.5" stroke-linejoin="round"/><path d="M22 17 L22 43 L12 50 Z" fill="#111827"/></svg>`;
+            return d;
+        };
+        c.addTo(map); added.push(c);
+    }
+    return added;
+}
+
+async function runExport() {
+    const mapEl = map.getContainer();
+    const paperKey = exportPaper.value;
+    const target = exportTargetPx();
+    const prev = { legend: legendVisible, labels: areLabelsVisible };
+    const frameRect = target ? exportFrame.getBoundingClientRect() : null;
+    const savedStyle = mapEl.getAttribute('style') || '';
+    const savedView = { center: map.getCenter(), zoom: map.getZoom() };
+
     loadingOverlay.classList.remove('hidden');
     controlsContainer.classList.add('hidden');
-    
-    setTimeout(() => {
-        html2canvas(document.getElementById('map'), {
-            useCORS: true,
-            logging: false
-        }).then(canvas => {
-            const a = document.createElement('a');
-            a.href = canvas.toDataURL('image/png');
-            a.download = 'map-capture.png';
-            a.click();
-        }).finally(() => {
-            loadingOverlay.classList.add('hidden');
-            controlsContainer.classList.remove('hidden');
-        });
-    }, 500);
-});
+    document.body.classList.add('exporting');
+    legendVisible = exportLegend.checked; updateLegend();
+    areLabelsVisible = exportLabels.checked; applyLabelVisibility();
+    mapEl.classList.toggle('export-no-scale', !exportScale.checked);
+    const extra = target ? makeExportControls({ title: exportTitle.value.trim(), north: exportNorth.checked }) : [];
+
+    let fileName = 'map-capture.png';
+    let savedPixelRatio = null;
+    try {
+        let scale = 1;
+        if (target) {
+            // Shrink the map container onto the frame so exactly the framed area is captured.
+            mapEl.style.position = 'fixed';
+            mapEl.style.left = `${frameRect.left}px`;
+            mapEl.style.top = `${frameRect.top}px`;
+            mapEl.style.width = `${frameRect.width}px`;
+            mapEl.style.height = `${frameRect.height}px`;
+            map.invalidateSize({ pan: false });
+            map.panBy([frameRect.left, frameRect.top], { animate: false });
+            scale = target.w / frameRect.width;
+            const stamp = projectFileName().replace('map-project-', '').replace('.json', '');
+            fileName = `map-${paperKey.slice(0, 2).toUpperCase()}${paperKey.endsWith('l') ? '-landscape' : '-portrait'}-${target.dpi}dpi-${stamp}.png`;
+        }
+        // Vector basemaps re-render at the export resolution, so map text stays sharp.
+        const gl = currentLayer && currentLayer.isVectorBasemap ? currentLayer.getMaplibreMap() : null;
+        if (gl && target) {
+            savedPixelRatio = gl.getPixelRatio();
+            await new Promise(resolve => {
+                const timer = setTimeout(resolve, 10000);
+                gl.once('idle', () => { clearTimeout(timer); resolve(); });
+                gl.setPixelRatio(Math.min(scale * (window.devicePixelRatio || 1), 8));
+                gl.triggerRepaint();
+            });
+        }
+        await waitForTiles();
+        let blob = null;
+        if (target && window.modernScreenshot) {
+            // html2canvas mis-places SVG icons and transformed labels when scale != 1,
+            // so paper exports use the browser's own rendering via modern-screenshot.
+            try {
+                blob = await modernScreenshot.domToBlob(mapEl, { scale, backgroundColor: '#ffffff', type: 'image/png' });
+            } catch (err) {
+                console.warn('modern-screenshot failed, falling back to html2canvas', err);
+            }
+        }
+        if (!blob) {
+            const canvas = await html2canvas(mapEl, { useCORS: true, logging: false, scale, backgroundColor: '#ffffff' });
+            blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+        }
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+        if (target) showToast(`ส่งออกแล้ว ${target.w} × ${target.h} px`);
+    } catch (err) {
+        console.error('Export failed', err);
+        showToast('ส่งออกภาพไม่สำเร็จ ลองลดความละเอียดหรือเปลี่ยนแผนที่พื้นหลัง');
+    } finally {
+        extra.forEach(c => c.remove());
+        if (savedPixelRatio !== null && currentLayer.isVectorBasemap) currentLayer.getMaplibreMap().setPixelRatio(savedPixelRatio);
+        if (target) {
+            mapEl.setAttribute('style', savedStyle);
+            map.invalidateSize({ pan: false });
+            map.setView(savedView.center, savedView.zoom, { reset: true });
+        }
+        mapEl.classList.remove('export-no-scale');
+        legendVisible = prev.legend; updateLegend();
+        areLabelsVisible = prev.labels; applyLabelVisibility();
+        loadingOverlay.classList.add('hidden');
+        controlsContainer.classList.remove('hidden');
+        document.body.classList.remove('exporting');
+        closeExportPanel();
+    }
+}
+getEl('export-run-btn').addEventListener('click', runExport);
 
 // --- Search Logic ---
+// Accepts "13.7563, 100.5018" (as copied from Google Maps) or "13.7563 100.5018".
+function parseLatLng(text) {
+    const m = String(text).trim().match(/^\(?\s*(-?\d+(?:\.\d+)?)\s*[,\s]\s*(-?\d+(?:\.\d+)?)\s*\)?$/);
+    if (!m) return null;
+    const lat = parseFloat(m[1]), lng = parseFloat(m[2]);
+    if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+    return L.latLng(lat, lng);
+}
+
 function performSearch() {
     const query = searchInput.value;
     if (!query) return;
+
+    const coord = parseLatLng(query);
+    if (coord) {
+        map.flyTo(coord, Math.max(map.getZoom(), 17));
+        searchResults.innerHTML = '';
+        searchPanel.classList.add('hidden');
+        showCreateModal(coord);
+        return;
+    }
 
     searchResults.innerHTML = 'กำลังค้นหา...';
     
@@ -1002,7 +1421,9 @@ function performSearch() {
     })
     .then(data => {
         if (searchResultMarker) {
-            transientSearchLayer.clearLayers();
+            const index = markers.indexOf(searchResultMarker);
+            if (index > -1) markers.splice(index, 1);
+            map.removeLayer(searchResultMarker);
             searchResultMarker = null;
         }
 
@@ -1012,27 +1433,11 @@ function performSearch() {
             map.flyTo(latlng, 16);
             
             searchResultMarker = createMarkerFromData({
-                labelText: result.display_name,
+                labelText: String(result.display_name || query),
                 markerColor: '#475569', // Slate color
                 latlng: latlng,
-                radii: [],
-                transient: true
+                radii: []
             });
-            const searchPopup = document.createElement('div');
-            const searchLabel = document.createElement('div');
-            searchLabel.textContent = result.display_name;
-            const addSearchResultButton = document.createElement('button');
-            addSearchResultButton.type = 'button';
-            addSearchResultButton.textContent = 'Add to project';
-            addSearchResultButton.className = 'mt-2 rounded bg-blue-600 px-2 py-1 text-white';
-            addSearchResultButton.addEventListener('click', () => {
-                const projectMarker = createMarkerFromData({ labelText: result.display_name, markerColor: '#475569', latlng, radii: [] });
-                transientSearchLayer.clearLayers();
-                searchResultMarker = null;
-                projectMarker.openPopup();
-            });
-            searchPopup.append(searchLabel, addSearchResultButton);
-            searchResultMarker.bindPopup(searchPopup, { autoClose: false, closeButton: false });
             searchResultMarker.openPopup();
             
             searchResults.innerHTML = '';
@@ -1064,6 +1469,7 @@ function stopAllDrawing() {
     [drawPolylineBtn, drawPolygonBtn, drawCircleBtn, drawRectangleBtn, drawArrowBtn, addTextBtn].forEach(btn => btn.classList.remove('active'));
     isAddingText = false;
     L.DomUtil.removeClass(map._container, 'cursor-text-tool');
+    if (typeof stopQuickPin === 'function') stopQuickPin();
 }
 
 function startDrawing(button, drawer) {
@@ -1124,18 +1530,10 @@ const saveTextHandler = function() {
     if (textMarkerToEdit) {
         // Editing existing text marker
         textMarkerToEdit.labelText = text; // Store text for saving
-        textMarkerToEdit.setIcon(createTextIcon(text, textMarkerToEdit.rotation || 0));
+        textMarkerToEdit.setIcon(textLabelIcon(text, textMarkerToEdit.rotation));
     } else {
         // Creating new text marker
-        const textIcon = createTextIcon(text, 0);
-        const textMarker = L.marker(tempPinLatLng, { icon: textIcon, draggable: true }).addTo(drawnItems);
-        textMarker.isTextLabel = true;
-        textMarker.projectFeatureId = MapToolsSchema.createId('feature');
-        textMarker.projectName = text;
-        textMarker.labelText = text;
-        textMarker.rotation = 0;
-
-        addLayerContextMenu(textMarker);
+        createTextLabel(tempPinLatLng, text, 0);
     }
     
     stopAllDrawing();
@@ -1168,7 +1566,7 @@ rotationSlider.addEventListener('input', () => {
         const angle = rotationSlider.value;
         rotationValue.innerText = `${angle}°`;
         textMarkerToEdit.rotation = angle;
-        textMarkerToEdit.setIcon(createTextIcon(textMarkerToEdit.labelText, angle));
+        textMarkerToEdit.setIcon(textLabelIcon(textMarkerToEdit.labelText, angle));
     }
 });
 
@@ -1189,34 +1587,8 @@ map.on('draw:created', function (e) {
             bindShapePopup(layer);
             return;
         }
-        const p1 = map.latLngToContainerPoint(latlngs[latlngs.length - 2]);
-        const p2 = map.latLngToContainerPoint(latlngs[latlngs.length - 1]);
-        const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x) * 180 / Math.PI;
-
-        const arrowhead = L.divIcon({
-            className: 'arrow-head',
-            html: `<div style="transform: rotate(${angle + 90}deg); transform-origin: center center;">
-                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="${layer.options.color}" width="24px" height="24px">
-                           <path d="M0 0h24v24H0z" fill="none"/><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/>
-                       </svg>
-                   </div>`,
-            iconSize: [24, 24],
-            iconAnchor: [12, 12]
-        });
-
-        const arrowMarker = L.marker(latlngs[latlngs.length - 1], { 
-            icon: arrowhead
-        });
-        
-        const arrowGroup = L.featureGroup([layer, arrowMarker]).addTo(drawnItems);
-        arrowGroup.isArrow = true;
-        arrowGroup.projectFeatureId = MapToolsSchema.createId('feature');
-        arrowGroup.projectName = 'Arrow';
-        addLayerContextMenu(arrowGroup);
-        bindShapePopup(arrowGroup);
+        createArrowFromLine(layer);
     } else {
-        layer.projectFeatureId = MapToolsSchema.createId('feature');
-        layer.projectName = type ? `${type.charAt(0).toUpperCase()}${type.slice(1)}` : 'Shape';
         drawnItems.addLayer(layer);
         addLayerContextMenu(layer);
         bindShapePopup(layer);
@@ -1228,21 +1600,112 @@ map.on('draw:created', function (e) {
 map.on('draw:drawstop', stopAllDrawing);
 
 // --- Final UI Setup ---
-Object.keys(baseMaps).forEach(name => {
+// --- Vector basemaps (MapLibre, loaded only when first chosen) ---
+// Rendered inside Leaflet via maplibre-gl-leaflet, so every drawing tool keeps working.
+const MAPLIBRE_JS = 'https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.1/dist/maplibre-gl.js';
+const MAPLIBRE_CSS = 'https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.1/dist/maplibre-gl.css';
+const MAPLIBRE_LEAFLET_JS = 'https://cdn.jsdelivr.net/npm/@maplibre/maplibre-gl-leaflet@0.1.4/leaflet-maplibre-gl.js';
+const OPENFREEMAP_ATTRIBUTION = '<a href="https://openfreemap.org" target="_blank">OpenFreeMap</a> © <a href="https://www.openmaptiles.org/" target="_blank">OpenMapTiles</a> Data from <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>';
+const VECTOR_STYLES = {
+    'Vector · Liberty (คมชัด)': 'https://tiles.openfreemap.org/styles/liberty',
+    'Vector · Positron (สว่าง เรียบ)': 'https://tiles.openfreemap.org/styles/positron',
+    'Vector · Bright': 'https://tiles.openfreemap.org/styles/bright'
+};
+let mapLibreLoading = null;
+
+function loadScript(src) {
+    return new Promise((resolve, reject) => {
+        const el = document.createElement('script');
+        el.src = src;
+        el.onload = resolve;
+        el.onerror = () => reject(new Error(`โหลดไม่สำเร็จ: ${src}`));
+        document.head.appendChild(el);
+    });
+}
+
+function ensureMapLibre() {
+    if (window.maplibregl && L.maplibreGL) return Promise.resolve();
+    if (!mapLibreLoading) {
+        const css = document.createElement('link');
+        css.rel = 'stylesheet';
+        css.href = MAPLIBRE_CSS;
+        document.head.appendChild(css);
+        mapLibreLoading = loadScript(MAPLIBRE_JS).then(() => loadScript(MAPLIBRE_LEAFLET_JS));
+        mapLibreLoading.catch(() => { mapLibreLoading = null; });
+    }
+    return mapLibreLoading;
+}
+
+// Show Thai names (fallback: local name) instead of "Latin + Thai" on two lines.
+function useThaiLabels(glMap) {
+    glMap.getStyle().layers.forEach(layer => {
+        if (layer.type !== 'symbol') return;
+        const tf = glMap.getLayoutProperty(layer.id, 'text-field');
+        if (tf && JSON.stringify(tf).includes('name:latin')) {
+            glMap.setLayoutProperty(layer.id, 'text-field', ['coalesce', ['get', 'name:th'], ['get', 'name']]);
+        }
+    });
+}
+
+function createVectorLayer(styleUrl) {
+    const layer = L.maplibreGL({
+        style: styleUrl,
+        attribution: OPENFREEMAP_ATTRIBUTION,
+        // needed so the WebGL canvas can be copied into exported images
+        canvasContextAttributes: { preserveDrawingBuffer: true },
+        preserveDrawingBuffer: true,
+        maxCanvasSize: [16384, 16384]
+    });
+    layer.isVectorBasemap = true;
+    return layer;
+}
+
+function attachThaiLabels(layer) {
+    const gl = layer.getMaplibreMap && layer.getMaplibreMap();
+    if (!gl || gl._thaiLabelHook) return;
+    gl._thaiLabelHook = true;
+    const apply = () => { if (!gl._thaiLabelsApplied && gl.isStyleLoaded()) { gl._thaiLabelsApplied = true; useThaiLabels(gl); } };
+    gl.on('styledata', apply);
+    gl.on('load', apply);
+    apply();
+}
+
+let currentBaseMapName = 'แผนที่ปกติ';
+async function switchBaseMap(name) {
+    layerPanel.classList.add('hidden');
+    if (name === currentBaseMapName) return;
+    if (!baseMaps[name] && VECTOR_STYLES[name]) {
+        showToast('กำลังโหลดแผนที่ vector…');
+        try {
+            await ensureMapLibre();
+            baseMaps[name] = createVectorLayer(VECTOR_STYLES[name]);
+        } catch (err) {
+            console.error(err);
+            showToast('โหลดแผนที่ vector ไม่สำเร็จ ใช้แผนที่เดิมต่อ');
+            return;
+        }
+    }
+    map.removeLayer(currentLayer);
+    currentLayer = baseMaps[name];
+    currentBaseMapName = name;
+    map.addLayer(currentLayer);
+    if (currentLayer.isVectorBasemap) attachThaiLabels(currentLayer);
+    getEl('map').classList.remove('light-mode', 'dark-mode');
+}
+
+function addBaseMapButton(name) {
     const button = document.createElement('button');
     button.className = 'w-full text-left p-2 rounded-md hover:bg-gray-100';
     button.textContent = name;
-    button.onclick = () => { 
-        const mapContainer = getEl('map');
-        map.removeLayer(currentLayer); 
-        currentLayer = baseMaps[name]; 
-        map.addLayer(currentLayer); 
-        layerPanel.classList.add('hidden'); 
-        
-        mapContainer.classList.remove('light-mode', 'dark-mode');
-    };
+    button.onclick = () => switchBaseMap(name);
     layerOptionsContainer.appendChild(button);
-});
+}
+Object.keys(baseMaps).forEach(addBaseMapButton);
+const vectorHeading = document.createElement('div');
+vectorHeading.className = 'px-2 pt-2 pb-1 text-xs text-gray-500 border-t mt-1';
+vectorHeading.textContent = 'แผนที่ vector (คมทุกระดับซูม ภาพส่งออกคมกว่า)';
+layerOptionsContainer.appendChild(vectorHeading);
+Object.keys(VECTOR_STYLES).forEach(addBaseMapButton);
 
 // --- Initialize Color Picker ---
 colorPickerInstance = new iro.ColorPicker('#color-picker-widget', { width: 190, color: "#fff", borderWidth: 2, borderColor: "#ddd" });
@@ -1277,69 +1740,397 @@ presetPalette.addEventListener('click', (e) => {
     }
 });
 
-// Deterministic browser characterization hooks. These are exposed only for the
-// local/CI test URL and do not change the production UI or runtime path.
-if (new URLSearchParams(window.location.search).has('test')) {
-    const latLngSnapshot = (latlng) => [Number(latlng.lat), Number(latlng.lng)];
-    const layerType = (layer) => {
-        if (layer.isTextLabel) return 'text';
-        if (layer.isArrow) return 'arrow';
-        if (layer instanceof L.Rectangle) return 'rectangle';
-        if (layer instanceof L.Circle) return 'circle';
-        if (layer instanceof L.Polygon) return 'polygon';
-        if (layer instanceof L.Polyline) return 'polyline';
-        return 'unknown';
-    };
+// --- Legend (inside the map, so it is included in PNG export) ---
+const legendControl = L.control({ position: 'bottomleft' });
+legendControl.onAdd = function() {
+    const div = L.DomUtil.create('div', 'survey-legend hidden');
+    L.DomEvent.disableClickPropagation(div);
+    return div;
+};
+legendControl.addTo(map);
 
-    window.__mapToolsTest = {
-        captureProjectDocument,
-        getMarkers: () => markers.slice(),
-        getSearchResult: () => searchResultMarker,
-        getDrawnLayers: () => drawnItems.getLayers().slice(),
-        runtimeSnapshot: () => ({
-            markers: markers.map(marker => ({
-                id: marker.projectFeatureId,
-                label: marker.labelText,
-                latlng: latLngSnapshot(marker.getLatLng()),
-                radii: marker.radii.map(radius => ({ id: String(radius.id), distance: Number(radius.distance) })),
-                circles: marker.circleLayerGroup.getLayers().map(circle => ({ center: latLngSnapshot(circle.getLatLng()), radius: circle.getRadius() }))
-            })),
-            drawn: drawnItems.getLayers().map(layer => {
-                if (layer.isArrow) {
-                    const line = layer.getLayers().find(item => item instanceof L.Polyline);
-                    const head = layer.getLayers().find(item => item instanceof L.Marker);
-                    return { type: 'arrow', line: line.getLatLngs().map(latLngSnapshot), head: latLngSnapshot(head.getLatLng()) };
-                }
-                if (layer.isTextLabel) return { type: 'text', text: layer.labelText, latlng: latLngSnapshot(layer.getLatLng()), rotation: Number(layer.rotation || 0) };
-                if (layer instanceof L.Circle) return { type: 'circle', center: latLngSnapshot(layer.getLatLng()), radius: layer.getRadius() };
-                if (layer instanceof L.Rectangle) return { type: 'rectangle', bounds: [latLngSnapshot(layer.getBounds().getSouthWest()), latLngSnapshot(layer.getBounds().getNorthEast())] };
-                if (layer instanceof L.Polygon) return { type: 'polygon', coordinates: layer.getLatLngs()[0].map(latLngSnapshot) };
-                if (layer instanceof L.Polyline) return { type: 'polyline', coordinates: layer.getLatLngs().map(latLngSnapshot) };
-                return { type: layerType(layer) };
-            })
-        }),
-        fireMapClick: (lat, lng) => map.fire('click', { latlng: L.latLng(lat, lng) }),
-        addTestShape: (type) => {
-            const definitions = {
-                polyline: L.polyline([[13.75, 100.5], [13.751, 100.502]], { color: '#3388ff', weight: 4 }),
-                polygon: L.polygon([[13.75, 100.5], [13.751, 100.5], [13.751, 100.502]], { color: '#f06eaa', weight: 4, fillColor: '#f06eaa', fillOpacity: 0.2 }),
-                rectangle: L.rectangle([[13.75, 100.5], [13.752, 100.503]], { color: '#8b5cf6', weight: 4, fillColor: '#8b5cf6', fillOpacity: 0.2 }),
-                circle: L.circle([13.7563, 100.5018], { radius: 250, color: '#f59e0b', weight: 4, fillColor: '#f59e0b', fillOpacity: 0.2 }),
-                arrow: L.polyline([[13.75, 100.5], [13.751, 100.502]], { color: '#10b981', weight: 3 })
-            };
-            const layer = definitions[type];
-            if (!layer) throw new Error(`Unknown test shape: ${type}`);
-            activeDrawHandler = { type: type === 'arrow' ? 'polyline' : type, disable: () => {} };
-            if (type === 'arrow') drawArrowBtn.classList.add('active');
-            map.fire('draw:created', { layerType: type === 'arrow' ? 'polyline' : type, layer });
-        },
-        openTextEditor: (layer) => {
-            textMarkerToEdit = layer;
-            textModalTitle.innerText = 'แก้ไขข้อความ';
-            textLabelInput.value = layer.labelText;
-            textActionsContainer.classList.remove('hidden');
-            newTextActionsContainer.classList.add('hidden');
-            textModal.classList.remove('hidden');
-        }
-    };
+function updateLegend() {
+    const div = legendControl.getContainer();
+    if (!div) return;
+    const counts = {};
+    markers.forEach(m => {
+        const t = normalizeType(m.pointType);
+        if (t !== 'general') counts[t] = (counts[t] || 0) + 1;
+    });
+    const types = SURVEY_TYPE_ORDER.filter(t => counts[t]);
+    div.classList.toggle('hidden', !legendVisible || types.length === 0);
+    div.innerHTML = '<div class="survey-legend-title">คำอธิบายสัญลักษณ์</div>' + types.map(t =>
+        `<div class="survey-legend-row">${surveySymbolSvg(t, 20)}<span>${escapeHtml(SURVEY_TYPES[t].label)}</span><span class="survey-legend-count">${counts[t]} จุด</span></div>`
+    ).join('');
 }
+
+toggleLegendBtn.addEventListener('click', () => {
+    legendVisible = !legendVisible;
+    updateLegend();
+    showToast(legendVisible ? 'แสดงคำอธิบายสัญลักษณ์' : 'ซ่อนคำอธิบายสัญลักษณ์');
+});
+
+// --- CSV export of points (UTF-8 with BOM so Excel shows Thai correctly) ---
+function csvCell(value) {
+    const text = String(value ?? '');
+    return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function exportPointsCsv() {
+    if (markers.length === 0) { showToast('ยังไม่มีหมุดให้ส่งออก'); return; }
+    const rows = markers.slice().sort((a, b) => {
+        const ta = SURVEY_TYPE_ORDER.indexOf(normalizeType(a.pointType));
+        const tb = SURVEY_TYPE_ORDER.indexOf(normalizeType(b.pointType));
+        if (ta !== tb) return (ta === 0 ? 99 : ta) - (tb === 0 ? 99 : tb);
+        return String(a.code || a.labelText).localeCompare(String(b.code || b.labelText), 'th', { numeric: true });
+    }).map(m => {
+        const ll = m.getLatLng();
+        return [m.code || '', SURVEY_TYPES[normalizeType(m.pointType)].label, m.labelText || '',
+            ll.lat.toFixed(6), ll.lng.toFixed(6), m.radii.map(r => r.distance).join('; ')];
+    });
+    const header = ['รหัส', 'ประเภท', 'ชื่อ/รายละเอียด', 'ละติจูด', 'ลองจิจูด', 'รัศมี (ม.)'];
+    const csv = '\uFEFF' + [header, ...rows].map(r => r.map(csvCell).join(',')).join('\r\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = projectFileName().replace('map-project', 'survey-points').replace('.json', '.csv');
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+exportCsvBtn.addEventListener('click', exportPointsCsv);
+
+// --- CSV import (appends points; columns matched by Thai or English header names) ---
+function parseCsv(text) {
+    text = text.replace(/^﻿/, '');
+    const firstLine = text.split(/\r?\n/, 1)[0];
+    const delim = (firstLine.match(/;/g) || []).length > (firstLine.match(/,/g) || []).length ? ';' : ',';
+    const rows = [];
+    let row = [], field = '', inQuotes = false;
+    for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        if (inQuotes) {
+            if (ch === '"' && text[i + 1] === '"') { field += '"'; i++; }
+            else if (ch === '"') inQuotes = false;
+            else field += ch;
+        } else if (ch === '"') inQuotes = true;
+        else if (ch === delim) { row.push(field); field = ''; }
+        else if (ch === '\n' || ch === '\r') {
+            if (ch === '\r' && text[i + 1] === '\n') i++;
+            row.push(field); rows.push(row); row = []; field = '';
+        } else field += ch;
+    }
+    if (field !== '' || row.length) { row.push(field); rows.push(row); }
+    return rows.filter(r => r.some(c => String(c).trim() !== ''));
+}
+
+const CSV_HEADER_ALIASES = {
+    code: ['รหัส', 'รหัสจุด', 'code', 'id', 'station'],
+    type: ['ประเภท', 'type', 'category'],
+    name: ['ชื่อ/รายละเอียด', 'ชื่อ', 'รายละเอียด', 'name', 'label', 'description'],
+    lat: ['ละติจูด', 'lat', 'latitude', 'y'],
+    lng: ['ลองจิจูด', 'lng', 'lon', 'long', 'longitude', 'x'],
+    radius: ['รัศมี (ม.)', 'รัศมี', 'radius', 'radii', 'radius (m)']
+};
+
+function typeFromCsv(typeText, code) {
+    const t = String(typeText || '').trim().toLowerCase();
+    for (const key of SURVEY_TYPE_ORDER) {
+        if (t && (t === key || t === SURVEY_TYPES[key].label.toLowerCase())) return key;
+    }
+    if (t.includes('ไม่มีสัญญาณ') || t.includes('unsignal')) return 'tmc_unsignal';
+    if (t.includes('สัญญาณไฟ') || t.includes('signal')) return 'tmc_signal';
+    if (t.includes('กลับรถ') || t.includes('u-turn') || t.includes('uturn')) return 'uturn';
+    if (t.includes('คนเดิน') || t.includes('pedestrian')) return 'ped';
+    if (t.includes('od')) return 'od';
+    if (t.includes('ช่วงถนน') || t.includes('link')) return 'mb';
+    const prefix = String(code || '').trim().toUpperCase().split('-')[0];
+    const byPrefix = { TMC: 'tmc_signal', UT: 'uturn', MB: 'mb', PC: 'ped', OD: 'od' };
+    return byPrefix[prefix] || 'general';
+}
+
+function importPointsCsv(text) {
+    const rows = parseCsv(text);
+    if (rows.length < 2) { showToast('ไฟล์ CSV ไม่มีข้อมูล'); return; }
+    const header = rows[0].map(h => String(h).trim().toLowerCase());
+    const col = {};
+    Object.entries(CSV_HEADER_ALIASES).forEach(([key, names]) => {
+        col[key] = header.findIndex(h => names.includes(h));
+    });
+    if (col.lat < 0 || col.lng < 0) { showToast('ไม่พบคอลัมน์ละติจูด/ลองจิจูด (lat, lng)'); return; }
+    let added = 0, skipped = 0;
+    const bounds = L.latLngBounds([]);
+    rows.slice(1).forEach(r => {
+        const lat = parseFloat(String(r[col.lat] ?? '').replace(/\s/g, ''));
+        const lng = parseFloat(String(r[col.lng] ?? '').replace(/\s/g, ''));
+        if (!isFinite(lat) || !isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) { skipped++; return; }
+        const code = col.code >= 0 ? String(r[col.code] ?? '').trim() : '';
+        const type = typeFromCsv(col.type >= 0 ? r[col.type] : '', code);
+        const radii = col.radius >= 0
+            ? String(r[col.radius] ?? '').split(/[;|\/]/).map(v => parseFloat(v)).filter(v => v > 0)
+                .map((d, i) => ({ id: Date.now() + added * 100 + i, distance: d, color: '#3388ff' }))
+            : [];
+        createMarkerFromData({
+            labelText: col.name >= 0 ? String(r[col.name] ?? '').trim() : '',
+            markerColor: type === 'general' ? '#2563eb' : SURVEY_TYPES[type].color,
+            pointType: type,
+            code: type === 'general' ? '' : (code || nextCode(SURVEY_TYPES[type].prefix)),
+            latlng: L.latLng(lat, lng),
+            radii
+        });
+        bounds.extend([lat, lng]);
+        added++;
+    });
+    updateLegend();
+    if (bounds.isValid()) map.fitBounds(bounds, { padding: [60, 60], maxZoom: 17 });
+    clearTimeout(historyTimer);
+    recordHistory();
+    showToast(`นำเข้า ${added} จุด${skipped ? ` (ข้าม ${skipped} แถวที่พิกัดไม่ถูกต้อง)` : ''}`);
+}
+
+const importCsvInput = getEl('import-csv-input');
+getEl('import-csv-btn').addEventListener('click', () => importCsvInput.click());
+importCsvInput.addEventListener('change', (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+        try { importPointsCsv(String(e.target.result)); }
+        catch (err) { console.error(err); showToast('อ่านไฟล์ CSV ไม่สำเร็จ'); }
+    };
+    reader.readAsText(file, 'utf-8');
+    importCsvInput.value = '';
+});
+
+// --- KML export (Google Earth / Google My Maps) ---
+function xmlEscape(v) {
+    return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function kmlColor(hex, alpha = 'ff') {
+    const h = safeColor(hex, '#3388ff').replace('#', '');
+    const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h.slice(0, 6);
+    return alpha + full.slice(4, 6) + full.slice(2, 4) + full.slice(0, 2); // aabbggrr
+}
+function circleRing(center, radiusM, steps = 72) {
+    const R = 6378137, lat = center.lat * Math.PI / 180, lng = center.lng * Math.PI / 180, d = radiusM / R;
+    const pts = [];
+    for (let i = 0; i <= steps; i++) {
+        const brg = 2 * Math.PI * i / steps;
+        const lat2 = Math.asin(Math.sin(lat) * Math.cos(d) + Math.cos(lat) * Math.sin(d) * Math.cos(brg));
+        const lng2 = lng + Math.atan2(Math.sin(brg) * Math.sin(d) * Math.cos(lat), Math.cos(d) - Math.sin(lat) * Math.sin(lat2));
+        pts.push(`${(lng2 * 180 / Math.PI).toFixed(7)},${(lat2 * 180 / Math.PI).toFixed(7)},0`);
+    }
+    return pts.join(' ');
+}
+function coordsOf(latlngs) { return latlngs.map(ll => `${ll.lng.toFixed(7)},${ll.lat.toFixed(7)},0`).join(' '); }
+
+function exportKml() {
+    if (markers.length === 0 && drawnItems.getLayers().length === 0) { showToast('ยังไม่มีข้อมูลให้ส่งออก'); return; }
+    const styles = [], folders = [];
+    const typesUsed = [...SURVEY_TYPE_ORDER.slice(1), 'general'].filter(t => markers.some(m => normalizeType(m.pointType) === t));
+    typesUsed.forEach(t => {
+        const pins = markers.filter(m => normalizeType(m.pointType) === t);
+        const placemarks = pins.map((m, i) => {
+            const color = t === 'general' ? m.markerColor : SURVEY_TYPES[t].color;
+            const styleId = `s-${t}-${i}`;
+            styles.push(`<Style id="${styleId}"><IconStyle><color>${kmlColor(color)}</color><scale>1.1</scale><Icon><href>https://maps.google.com/mapfiles/kml/paddle/wht-blank.png</href></Icon></IconStyle><LabelStyle><scale>0.9</scale></LabelStyle></Style>`);
+            const ll = m.getLatLng();
+            const name = displayName(m) || SURVEY_TYPES[t].label;
+            const desc = `ประเภท: ${SURVEY_TYPES[t].label}${m.radii.length ? `\nรัศมี: ${m.radii.map(r => r.distance + ' ม.').join(', ')}` : ''}`;
+            const rings = m.radii.map(r => `<Placemark><name>${xmlEscape(name)} · ${r.distance} ม.</name><Style><LineStyle><color>${kmlColor(r.color)}</color><width>2</width></LineStyle><PolyStyle><color>${kmlColor(r.color, '33')}</color></PolyStyle></Style><Polygon><outerBoundaryIs><LinearRing><coordinates>${circleRing(ll, r.distance)}</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>`).join('');
+            return `<Placemark><name>${xmlEscape(name)}</name><description>${xmlEscape(desc)}</description><styleUrl>#${styleId}</styleUrl><Point><coordinates>${ll.lng.toFixed(7)},${ll.lat.toFixed(7)},0</coordinates></Point></Placemark>${rings}`;
+        }).join('');
+        folders.push(`<Folder><name>${xmlEscape(SURVEY_TYPES[t].label)} (${pins.length})</name>${placemarks}</Folder>`);
+    });
+    const shapes = [];
+    drawnItems.eachLayer(layer => {
+        if (layer.isTextLabel) {
+            const ll = layer.getLatLng();
+            shapes.push(`<Placemark><name>${xmlEscape(layer.labelText)}</name><Style><IconStyle><scale>0</scale></IconStyle></Style><Point><coordinates>${ll.lng.toFixed(7)},${ll.lat.toFixed(7)},0</coordinates></Point></Placemark>`);
+            return;
+        }
+        const line = layer.isArrow ? layer.getLayers().find(l => l instanceof L.Polyline) : layer;
+        const color = line.options.color;
+        const style = `<Style><LineStyle><color>${kmlColor(color)}</color><width>3</width></LineStyle><PolyStyle><color>${kmlColor(color, '33')}</color></PolyStyle></Style>`;
+        if (line instanceof L.Circle) {
+            shapes.push(`<Placemark><name>วงกลม ${Math.round(line.getRadius())} ม.</name>${style}<Polygon><outerBoundaryIs><LinearRing><coordinates>${circleRing(line.getLatLng(), line.getRadius())}</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>`);
+        } else if (line instanceof L.Polygon) {
+            const ring = line.getLatLngs()[0];
+            shapes.push(`<Placemark><name>รูปหลายเหลี่ยม</name>${style}<Polygon><outerBoundaryIs><LinearRing><coordinates>${coordsOf([...ring, ring[0]])}</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>`);
+        } else if (line instanceof L.Polyline) {
+            shapes.push(`<Placemark><name>${layer.isArrow ? 'ลูกศร' : 'เส้น'}</name>${style}<LineString><tessellate>1</tessellate><coordinates>${coordsOf(line.getLatLngs())}</coordinates></LineString></Placemark>`);
+        }
+    });
+    if (shapes.length) folders.push(`<Folder><name>รูปทรงและข้อความ (${shapes.length})</name>${shapes.join('')}</Folder>`);
+    const kml = `<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>${xmlEscape(exportTitle.value.trim() || 'Map Tools')}</name>${styles.join('')}${folders.join('')}</Document></kml>`;
+    const url = URL.createObjectURL(new Blob([kml], { type: 'application/vnd.google-earth.kml+xml' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = projectFileName().replace('map-project', 'map').replace('.json', '.kml');
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+getEl('export-kml-btn').addEventListener('click', exportKml);
+
+// --- Quick pin mode: click the map repeatedly to drop pins of one type ---
+let quickPinActive = false;
+const quickBar = document.createElement('div');
+quickBar.id = 'quick-pin-bar';
+quickBar.className = 'hidden';
+quickBar.setAttribute('role', 'toolbar');
+quickBar.innerHTML = `
+    <span class="quick-pin-title">ปักหมุดเร็ว</span>
+    <label class="sr-only" for="quick-pin-type">ประเภทจุด</label>
+    <select id="quick-pin-type"></select>
+    <span id="quick-pin-next" class="quick-pin-next"></span>
+    <button id="quick-pin-done" type="button">เสร็จ</button>`;
+document.body.appendChild(quickBar);
+const quickPinType = getEl('quick-pin-type'), quickPinNext = getEl('quick-pin-next'), quickPinDone = getEl('quick-pin-done');
+SURVEY_TYPE_ORDER.forEach(key => {
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = SURVEY_TYPES[key].label;
+    quickPinType.appendChild(opt);
+});
+
+function updateQuickNext() {
+    const type = normalizeType(quickPinType.value);
+    const code = nextCode(SURVEY_TYPES[type].prefix);
+    quickPinNext.textContent = code ? `ถัดไป: ${code}` : 'คลิกบนแผนที่เพื่อวางหมุด';
+}
+
+function startQuickPin() {
+    stopAllDrawing();
+    hideContextMenu();
+    quickPinActive = true;
+    quickPinType.value = lastPointType;
+    updateQuickNext();
+    quickBar.classList.remove('hidden');
+    quickPinBtn.classList.add('active');
+    L.DomUtil.addClass(map.getContainer(), 'cursor-quick-pin');
+    toolPanel.classList.add('hidden');
+}
+
+function stopQuickPin() {
+    if (!quickPinActive) return;
+    quickPinActive = false;
+    quickBar.classList.add('hidden');
+    quickPinBtn.classList.remove('active');
+    L.DomUtil.removeClass(map.getContainer(), 'cursor-quick-pin');
+}
+
+quickPinType.addEventListener('change', () => { lastPointType = normalizeType(quickPinType.value); updateQuickNext(); });
+quickPinDone.addEventListener('click', stopQuickPin);
+
+map.on('click', function(e) {
+    if (!quickPinActive) return;
+    const type = normalizeType(quickPinType.value);
+    createMarkerFromData({
+        labelText: '',
+        markerColor: type === 'general' ? selectedColor : SURVEY_TYPES[type].color,
+        pointType: type,
+        code: nextCode(SURVEY_TYPES[type].prefix),
+        latlng: e.latlng,
+        radii: []
+    });
+    lastPointType = type;
+    updateLegend();
+    updateQuickNext();
+    clearTimeout(historyTimer);
+    recordHistory(); // each quick pin is its own undo step
+});
+
+const quickPinBtn = getEl('quick-pin-btn');
+quickPinBtn.addEventListener('click', () => (quickPinActive ? stopQuickPin() : startQuickPin()));
+
+// --- Undo / Redo (snapshot history of the whole project) ---
+const HISTORY_LIMIT = 100;
+let historyStack = [];
+let historyIndex = -1;
+let historyTimer = null;
+const undoBtn = getEl('undo-btn'), redoBtn = getEl('redo-btn');
+
+function projectSnapshot() {
+    const data = serializeProject();
+    return JSON.stringify({ markers: data.markers, shapes: data.shapes });
+}
+
+function updateHistoryButtons() {
+    undoBtn.disabled = historyIndex <= 0;
+    redoBtn.disabled = historyIndex >= historyStack.length - 1;
+}
+
+function recordHistory() {
+    historyTimer = null;
+    const snap = projectSnapshot();
+    if (historyStack[historyIndex] === snap) return;
+    historyStack = historyStack.slice(0, historyIndex + 1);
+    historyStack.push(snap);
+    if (historyStack.length > HISTORY_LIMIT) historyStack.shift();
+    historyIndex = historyStack.length - 1;
+    updateHistoryButtons();
+}
+
+function recordHistorySoon() {
+    clearTimeout(historyTimer);
+    historyTimer = setTimeout(recordHistory, 120);
+}
+
+function restoreHistory(index) {
+    if (index < 0 || index >= historyStack.length) return;
+    clearTimeout(historyTimer);
+    historyTimer = null;
+    stopAllDrawing();
+    hideAllModals();
+    hideContextMenu();
+    historyIndex = index;
+    loadProject(JSON.parse(historyStack[index]));
+    // Store the re-serialised form so a no-op comparison never discards the redo stack.
+    historyStack[index] = projectSnapshot();
+    updateHistoryButtons();
+    if (quickPinActive) updateQuickNext();
+}
+
+function undo() {
+    recordHistory(); // capture any change not yet recorded
+    restoreHistory(historyIndex - 1);
+}
+function redo() { restoreHistory(historyIndex + 1); }
+
+undoBtn.addEventListener('click', undo);
+redoBtn.addEventListener('click', redo);
+
+// Any finished interaction may have changed the project; the snapshot comparison
+// decides whether a history step is actually recorded.
+['mouseup', 'touchend', 'keyup', 'change'].forEach(evt => document.addEventListener(evt, recordHistorySoon, true));
+map.on('draw:created draw:edited draw:deleted', recordHistorySoon);
+
+document.addEventListener('keydown', (e) => {
+    const target = e.target;
+    const typing = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable);
+    if (typing || !(e.ctrlKey || e.metaKey)) return;
+    const key = e.key.toLowerCase();
+    if (key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+    else if ((key === 'z' && e.shiftKey) || key === 'y') { e.preventDefault(); redo(); }
+});
+
+// --- Keyboard: Escape cancels the current tool, menu or dialog ---
+document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    closeExportPanel();
+    hideContextMenu();
+    stopAllDrawing();
+    hideAllModals();
+    deleteAllConfirmModal.classList.add('hidden');
+});
+
+// --- Restore last session and keep autosaving ---
+restoreAutosave();
+applyLabelVisibility();
+recordHistory();
+autosaveNow();
+setInterval(autosaveNow, 2000);
+window.addEventListener('beforeunload', autosaveNow);

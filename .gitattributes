@@ -1,0 +1,2 @@
+# CSV fixtures keep CRLF line endings on purpose (importer must handle them)
+tests/e2e/fixtures/*.csv -text
