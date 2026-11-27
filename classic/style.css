@@ -155,3 +155,29 @@ body {
     color: #6b7280; /* gray-500 */
     cursor: default;
 }
+
+/* --- Classic restore additions --- */
+#context-menu .info-item.copyable { cursor: pointer; }
+#context-menu .info-item.copyable:hover { background-color: #f3f4f6; }
+#context-menu .copy-hint { color: #9ca3af; font-size: 0.75rem; }
+
+#app-toast {
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    transform: translate(-50%, 12px);
+    max-width: min(90vw, 480px);
+    padding: 10px 16px;
+    border-radius: 10px;
+    background: rgba(17, 24, 39, 0.92);
+    color: #fff;
+    font-size: 0.875rem;
+    line-height: 1.4;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 160ms ease, transform 160ms ease;
+    z-index: 5000;
+}
+#app-toast.visible { opacity: 1; transform: translate(-50%, 0); }
+@media (prefers-reduced-motion: reduce) { #app-toast { transition: none; } }

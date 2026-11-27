@@ -94,14 +94,40 @@ const toggleInfoBtn = getEl('toggle-info-btn'), infoModal = getEl('info-modal'),
 
 
 // --- Helper Functions ---
+// Escape user/remote text before it is placed into HTML (labels, search results, loaded files).
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function safeColor(value, fallback = '#3388ff') {
+    return /^#[0-9a-f]{3,8}$/i.test(String(value || '')) ? value : fallback;
+}
+
+function showToast(message) {
+    let toast = getEl('app-toast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'app-toast';
+        toast.setAttribute('role', 'status');
+        document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.classList.add('visible');
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(() => toast.classList.remove('visible'), 2600);
+}
+
 function createMarkerIcon(color) {
+    color = safeColor(color, '#2563eb');
     const svg = `<div class="custom-marker-icon"><svg width="25" height="41" viewBox="0 0 25 41" xmlns="http://www.w3.org/2000/svg"><path d="M12.5 0C5.596 0 0 5.596 0 12.5 0 19.404 12.5 41 12.5 41S25 19.404 25 12.5C25 5.596 19.404 0 12.5 0z" fill="${color}"/><circle cx="12.5" cy="12.5" r="4.5" fill="white"/></svg></div>`;
     return L.divIcon({ html: svg, className: '', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -36] });
 }
 
 function createPopupContent(marker) {
     const markerId = L.Util.stamp(marker);
-    return `<div class="editable-popup-text" ondblclick="startEdit(${markerId})"><b>${marker.labelText}</b></div>`;
+    return `<div class="editable-popup-text" ondblclick="startEdit(${markerId})"><b>${escapeHtml(marker.labelText)}</b></div>`;
 }
 
 function formatArea(area) {
@@ -144,13 +170,15 @@ function drawCirclesForMarker(marker) {
     const latlng = marker.getLatLng();
     marker.circleLayerGroup.clearLayers();
     marker.radii.forEach(radius => {
-        L.circle(latlng, {
+        const ring = L.circle(latlng, {
             renderer: canvasRenderer,
             radius: radius.distance,
-            color: radius.color,
-            fillColor: radius.color,
+            color: safeColor(radius.color),
+            fillColor: safeColor(radius.color),
             fillOpacity: 0.2
         }).addTo(marker.circleLayerGroup);
+        // Hover shows which pin/ring this is; it is not part of the exported image.
+        ring.bindTooltip(`${escapeHtml(marker.labelText)} · ${radius.distance.toLocaleString()} ม.`, { sticky: true });
     });
 }
 
@@ -162,7 +190,7 @@ function renderRadiusList() {
         item.className = 'flex items-center justify-between p-2 bg-gray-100 rounded-lg';
         item.innerHTML = `
             <div class="flex items-center space-x-3">
-                <button class="w-6 h-6 rounded border border-gray-300" style="background-color: ${radius.color};" data-id="${radius.id}" data-action="edit-color"></button>
+                <button class="w-6 h-6 rounded border border-gray-300" style="background-color: ${safeColor(radius.color)};" data-id="${radius.id}" data-action="edit-color"></button>
                 <span>${radius.distance.toLocaleString()} เมตร</span>
             </div>
             <div class="flex items-center space-x-3">
@@ -261,7 +289,10 @@ cancelEditRadiusBtn.addEventListener('click', resetRadiusForm);
 
 addRadiusBtn.addEventListener('click', () => {
     const distance = parseFloat(radiusInput.value);
-    if (!markerToEdit || !(distance >= 0)) return;
+    if (!markerToEdit || !(distance > 0)) {
+        showToast('กรุณาใส่ระยะรัศมีมากกว่า 0 เมตร');
+        return;
+    }
 
     if (radiusToEditId) {
         const radius = markerToEdit.radii.find(r => r.id === radiusToEditId);
@@ -611,6 +642,19 @@ function showContextMenu(point, menuItems) {
             const div = document.createElement('div');
             div.className = 'info-item';
             div.innerHTML = item.text;
+            if (item.copyText) {
+                div.classList.add('copyable');
+                div.title = 'คลิกเพื่อคัดลอกพิกัด';
+                div.onclick = () => {
+                    const done = () => showToast(`คัดลอกพิกัดแล้ว: ${item.copyText}`);
+                    if (navigator.clipboard) {
+                        navigator.clipboard.writeText(item.copyText).then(done, () => showToast(item.copyText));
+                    } else {
+                        showToast(item.copyText);
+                    }
+                    hideContextMenu();
+                };
+            }
             contextMenu.appendChild(div);
         } else {
             const link = document.createElement('a');
@@ -626,6 +670,10 @@ function showContextMenu(point, menuItems) {
     contextMenu.style.left = `${point.x}px`;
     contextMenu.style.top = `${point.y}px`;
     contextMenu.classList.remove('hidden');
+    // Keep the menu inside the viewport near screen edges.
+    const rect = contextMenu.getBoundingClientRect();
+    if (rect.right > window.innerWidth - 8) contextMenu.style.left = `${Math.max(8, point.x - rect.width)}px`;
+    if (rect.bottom > window.innerHeight - 8) contextMenu.style.top = `${Math.max(8, point.y - rect.height)}px`;
 }
 
 function hideContextMenu() {
@@ -643,7 +691,7 @@ map.on('contextmenu', function(e) {
     const menuItems = [
         { text: 'เพิ่มหมุดที่นี่', callback: () => showCreateModal(e.latlng) },
         { isSeparator: true },
-        { text: `พิกัด: ${lat}, ${lon}`, isInfo: true },
+        { text: `พิกัด: ${lat}, ${lon} <span class="copy-hint">(คลิกเพื่อคัดลอก)</span>`, isInfo: true, copyText: `${lat}, ${lon}` },
         { text: '<i>กำลังค้นหาที่อยู่...</i>', isInfo: true, id: 'address-info' }
     ];
     
@@ -654,13 +702,13 @@ map.on('contextmenu', function(e) {
         .then(data => {
             const addressItem = contextMenu.querySelector('.info-item:last-child');
             if (addressItem) {
-                addressItem.innerHTML = data.display_name || 'ไม่พบข้อมูลที่อยู่';
+                addressItem.textContent = data.display_name || 'ไม่พบข้อมูลที่อยู่';
             }
         })
         .catch(error => {
             const addressItem = contextMenu.querySelector('.info-item:last-child');
             if (addressItem) {
-                addressItem.innerHTML = 'เกิดข้อผิดพลาดในการค้นหา';
+                addressItem.textContent = 'เกิดข้อผิดพลาดในการค้นหา';
             }
         });
 });
@@ -738,40 +786,206 @@ function createMarkerFromData(data) {
     return newMarker;
 }
 
-saveProjectBtn.addEventListener('click', () => {
-    const geoJsonData = drawnItems.toGeoJSON();
-    drawnItems.eachLayer((layer) => {
-        const geoJsonFeature = layer.toGeoJSON();
-        const correspondingFeature = geoJsonData.features.find(f => 
-            JSON.stringify(f.geometry) === JSON.stringify(geoJsonFeature.geometry)
-        );
-        if (correspondingFeature) {
-            correspondingFeature.properties.style = {
-                color: layer.options.color,
-                fillColor: layer.options.fillColor,
-            };
-            if (layer.getRadius) {
-                 correspondingFeature.properties.radius = layer.getRadius();
-            }
+// --- Shape factories (shared by drawing, opening files and autosave restore) ---
+function arrowHeadIcon(color, angle) {
+    return L.divIcon({
+        className: 'arrow-head',
+        html: `<div style="transform: rotate(${angle + 90}deg); transform-origin: center center;">
+                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="${safeColor(color, '#10b981')}" width="24px" height="24px">
+                       <path d="M0 0h24v24H0z" fill="none"/><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/>
+                   </svg>
+               </div>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12]
+    });
+}
+
+function createArrowFromLine(line) {
+    const latlngs = line.getLatLngs();
+    const p1 = map.latLngToContainerPoint(latlngs[latlngs.length - 2]);
+    const p2 = map.latLngToContainerPoint(latlngs[latlngs.length - 1]);
+    const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x) * 180 / Math.PI;
+    const arrowMarker = L.marker(latlngs[latlngs.length - 1], { icon: arrowHeadIcon(line.options.color, angle) });
+    const arrowGroup = L.featureGroup([line, arrowMarker]).addTo(drawnItems);
+    arrowGroup.isArrow = true;
+    addLayerContextMenu(arrowGroup);
+    bindShapePopup(arrowGroup);
+    return arrowGroup;
+}
+
+function textLabelIcon(text, rotation) {
+    return L.divIcon({
+        className: 'text-label-icon',
+        html: `<div style="transform: rotate(${Number(rotation) || 0}deg);">${escapeHtml(text)}</div>`
+    });
+}
+
+function createTextLabel(latlng, text, rotation = 0) {
+    const textMarker = L.marker(latlng, { icon: textLabelIcon(text, rotation), draggable: true }).addTo(drawnItems);
+    textMarker.isTextLabel = true;
+    textMarker.labelText = text;
+    textMarker.rotation = Number(rotation) || 0;
+    addLayerContextMenu(textMarker);
+    return textMarker;
+}
+
+function addShapeLayer(layer) {
+    drawnItems.addLayer(layer);
+    addLayerContextMenu(layer);
+    bindShapePopup(layer);
+    return layer;
+}
+
+// --- Project serialisation ---
+// Format version 2 keeps every feature type (pins + radii, text + rotation, arrows,
+// circles, lines, polygons/rectangles). "drawnShapes" stays as plain GeoJSON for GIS use
+// and for files written by the original version, which are still accepted on open.
+const PROJECT_FORMAT_VERSION = 2;
+const AUTOSAVE_KEY = 'map-tools-classic:autosave';
+
+function latLngPlain(ll) { return { lat: ll.lat, lng: ll.lng }; }
+
+function serializeProject() {
+    const shapes = [];
+    drawnItems.eachLayer(layer => {
+        if (layer.isTextLabel) {
+            shapes.push({ kind: 'text', latlng: latLngPlain(layer.getLatLng()), text: layer.labelText, rotation: Number(layer.rotation) || 0 });
+        } else if (layer.isArrow) {
+            const line = layer.getLayers().find(l => l instanceof L.Polyline);
+            if (line) shapes.push({ kind: 'arrow', latlngs: line.getLatLngs().map(latLngPlain), color: line.options.color });
+        } else if (layer instanceof L.Circle) {
+            shapes.push({ kind: 'circle', center: latLngPlain(layer.getLatLng()), radius: layer.getRadius(), color: layer.options.color, fillColor: layer.options.fillColor });
+        } else if (layer instanceof L.Polyline) {
+            shapes.push({ kind: 'geojson', feature: layer.toGeoJSON(), style: { color: layer.options.color, fillColor: layer.options.fillColor } });
         }
     });
 
-    const dataToSave = {
+    return {
+        app: 'map-tools-classic',
+        version: PROJECT_FORMAT_VERSION,
+        savedAt: new Date().toISOString(),
+        view: { center: latLngPlain(map.getCenter()), zoom: map.getZoom() },
         markers: markers.map(marker => ({
             labelText: marker.labelText,
             markerColor: marker.markerColor,
-            latlng: marker.getLatLng(),
+            latlng: latLngPlain(marker.getLatLng()),
             radii: marker.radii
         })),
-        drawnShapes: geoJsonData
+        shapes,
+        drawnShapes: drawnItems.toGeoJSON()
     };
+}
 
-    const jsonString = JSON.stringify(dataToSave, null, 2);
+function loadShapesV2(shapes) {
+    shapes.forEach(shape => {
+        try {
+            if (shape.kind === 'text') {
+                createTextLabel(shape.latlng, String(shape.text ?? ''), shape.rotation);
+            } else if (shape.kind === 'arrow' && Array.isArray(shape.latlngs) && shape.latlngs.length >= 2) {
+                const line = L.polyline(shape.latlngs, { color: safeColor(shape.color, '#10b981'), weight: 3 });
+                createArrowFromLine(line);
+            } else if (shape.kind === 'circle') {
+                const color = safeColor(shape.color, '#f59e0b');
+                addShapeLayer(L.circle(shape.center, { radius: Number(shape.radius) || 0, color, fillColor: safeColor(shape.fillColor, color), weight: 4 }));
+            } else if (shape.kind === 'geojson' && shape.feature) {
+                const style = { weight: 4, ...(shape.style || {}) };
+                style.color = safeColor(style.color);
+                style.fillColor = safeColor(style.fillColor, style.color);
+                L.geoJSON(shape.feature, { style: () => style }).eachLayer(addShapeLayer);
+            }
+        } catch (err) {
+            console.warn('Skipped an unreadable shape', shape, err);
+        }
+    });
+}
+
+function loadShapesLegacy(drawnShapes) {
+    // Original files flatten an arrow into a LineString plus a bare Point at its last vertex.
+    // Re-pair them so arrows come back as arrows instead of stray text labels.
+    const features = (drawnShapes && drawnShapes.features) || [];
+    const sameCoord = (a, b) => Math.abs(a[0] - b[0]) < 1e-9 && Math.abs(a[1] - b[1]) < 1e-9;
+    const arrowHeads = new Set();
+    const arrowLines = new Set();
+    features.forEach(pt => {
+        if (!pt.geometry || pt.geometry.type !== 'Point' || (pt.properties && pt.properties.radius)) return;
+        const line = features.find(f => f.geometry && f.geometry.type === 'LineString' && !arrowLines.has(f)
+            && sameCoord(f.geometry.coordinates[f.geometry.coordinates.length - 1], pt.geometry.coordinates));
+        if (line) { arrowHeads.add(pt); arrowLines.add(line); }
+    });
+    arrowLines.forEach(f => {
+        const latlngs = f.geometry.coordinates.map(c => [c[1], c[0]]);
+        const color = safeColor(f.properties && f.properties.style && f.properties.style.color, '#10b981');
+        createArrowFromLine(L.polyline(latlngs, { color, weight: 3 }));
+    });
+    const rest = features.filter(f => !arrowHeads.has(f) && !arrowLines.has(f));
+
+    L.geoJSON({ type: 'FeatureCollection', features: rest }, {
+        style: function (feature) {
+            const defaultStyle = {
+                color: feature.geometry.type === 'Polygon' ? '#f06eaa' : '#3388ff',
+                weight: 4
+            };
+            return { ...defaultStyle, ...(feature.properties && feature.properties.style) };
+        },
+        pointToLayer: function(feature, latlng) {
+            if (feature.properties && feature.properties.radius) {
+                return L.circle(latlng, feature.properties.radius, feature.properties.style);
+            }
+            return L.marker(latlng);
+        },
+        onEachFeature: function (feature, layer) {
+            if (layer instanceof L.Marker) {
+                // Original files stored text labels as bare points without their text.
+                createTextLabel(layer.getLatLng(), (feature.properties && feature.properties.text) || 'ข้อความ');
+                return;
+            }
+            addShapeLayer(layer);
+        }
+    });
+}
+
+function loadProject(data, { fitView = false } = {}) {
+    clearMap();
+    if (Array.isArray(data.markers)) {
+        data.markers.forEach(markerData => {
+            createMarkerFromData({
+                labelText: String(markerData.labelText ?? ''),
+                markerColor: safeColor(markerData.markerColor, '#2563eb'),
+                latlng: markerData.latlng,
+                radii: Array.isArray(markerData.radii)
+                    ? markerData.radii.filter(r => Number(r.distance) > 0).map(r => ({ id: r.id, distance: Number(r.distance), color: safeColor(r.color) }))
+                    : []
+            });
+        });
+    }
+    if (Array.isArray(data.shapes)) {
+        loadShapesV2(data.shapes);
+    } else if (data.drawnShapes) {
+        loadShapesLegacy(data.drawnShapes);
+    }
+    if (fitView && data.view && data.view.center) {
+        map.setView(data.view.center, data.view.zoom || map.getZoom());
+    } else if (fitView) {
+        const bounds = L.latLngBounds([]);
+        markers.forEach(m => bounds.extend(m.getLatLng()));
+        drawnItems.eachLayer(l => { if (l.getBounds) bounds.extend(l.getBounds()); else if (l.getLatLng) bounds.extend(l.getLatLng()); });
+        if (bounds.isValid()) map.fitBounds(bounds, { padding: [40, 40], maxZoom: 17 });
+    }
+}
+
+function projectFileName() {
+    const d = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    return `map-project-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.json`;
+}
+
+saveProjectBtn.addEventListener('click', () => {
+    const jsonString = JSON.stringify(serializeProject(), null, 2);
     const blob = new Blob([jsonString], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'map-project.json';
+    a.download = projectFileName();
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -790,29 +1004,8 @@ fileInput.addEventListener('change', (event) => {
     reader.onload = (e) => {
         try {
             const data = JSON.parse(e.target.result);
-            clearMap();
-            if (data.markers) data.markers.forEach(markerData => createMarkerFromData(markerData));
-            if (data.drawnShapes) {
-                L.geoJSON(data.drawnShapes, {
-                    style: function (feature) {
-                        const defaultStyle = {
-                            color: feature.geometry.type === 'Polygon' ? '#f06eaa' : '#3388ff',
-                            weight: 4
-                        };
-                        return { ...defaultStyle, ...feature.properties.style };
-                    },
-                    onEachFeature: function (feature, layer) {
-                        drawnItems.addLayer(layer);
-                        bindShapePopup(layer);
-                    },
-                    pointToLayer: function(feature, latlng) {
-                        if (feature.properties && feature.properties.radius) {
-                            return L.circle(latlng, feature.properties.radius, feature.properties.style);
-                        }
-                        return L.marker(latlng);
-                    }
-                });
-            }
+            loadProject(data, { fitView: true });
+            showToast(`เปิดโปรเจกต์แล้ว: ${file.name}`);
         } catch (error) {
             console.error("Error loading project:", error);
             alert('ไฟล์ไม่ถูกต้องหรือไม่สามารถอ่านข้อมูลได้');
@@ -821,6 +1014,38 @@ fileInput.addEventListener('change', (event) => {
     reader.readAsText(file);
     fileInput.value = '';
 });
+
+// --- Autosave (browser only) ---
+// Keeps the latest work in this browser so a refresh or closed tab does not lose it.
+// "Save project" files remain the way to keep or share a project.
+let lastAutosave = null;
+function autosaveNow() {
+    try {
+        const data = serializeProject();
+        const isEmpty = data.markers.length === 0 && data.shapes.length === 0;
+        const payload = isEmpty ? '' : JSON.stringify({ ...data, savedAt: undefined, view: undefined });
+        if (payload === lastAutosave) return;
+        lastAutosave = payload;
+        if (isEmpty) localStorage.removeItem(AUTOSAVE_KEY);
+        else localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(data));
+    } catch (err) {
+        // Storage may be unavailable (private mode, quota); the app keeps working without it.
+    }
+}
+
+function restoreAutosave() {
+    let raw = null;
+    try { raw = localStorage.getItem(AUTOSAVE_KEY); } catch (err) { return; }
+    if (!raw) return;
+    try {
+        const data = JSON.parse(raw);
+        loadProject(data, { fitView: true });
+        const when = data.savedAt ? new Date(data.savedAt).toLocaleString('th-TH') : '';
+        showToast(`กู้คืนงานล่าสุดในเบราว์เซอร์แล้ว${when ? ' (' + when + ')' : ''}`);
+    } catch (err) {
+        console.warn('Autosave could not be restored', err);
+    }
+}
 
 exportImageBtn.addEventListener('click', () => {
     loadingOverlay.classList.remove('hidden');
@@ -843,9 +1068,27 @@ exportImageBtn.addEventListener('click', () => {
 });
 
 // --- Search Logic ---
+// Accepts "13.7563, 100.5018" (as copied from Google Maps) or "13.7563 100.5018".
+function parseLatLng(text) {
+    const m = String(text).trim().match(/^\(?\s*(-?\d+(?:\.\d+)?)\s*[,\s]\s*(-?\d+(?:\.\d+)?)\s*\)?$/);
+    if (!m) return null;
+    const lat = parseFloat(m[1]), lng = parseFloat(m[2]);
+    if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+    return L.latLng(lat, lng);
+}
+
 function performSearch() {
     const query = searchInput.value;
     if (!query) return;
+
+    const coord = parseLatLng(query);
+    if (coord) {
+        map.flyTo(coord, Math.max(map.getZoom(), 17));
+        searchResults.innerHTML = '';
+        searchPanel.classList.add('hidden');
+        showCreateModal(coord);
+        return;
+    }
 
     searchResults.innerHTML = 'กำลังค้นหา...';
     
@@ -868,7 +1111,7 @@ function performSearch() {
             map.flyTo(latlng, 16);
             
             searchResultMarker = createMarkerFromData({
-                labelText: result.display_name,
+                labelText: String(result.display_name || query),
                 markerColor: '#475569', // Slate color
                 latlng: latlng,
                 radii: []
@@ -964,19 +1207,10 @@ const saveTextHandler = function() {
     if (textMarkerToEdit) {
         // Editing existing text marker
         textMarkerToEdit.labelText = text; // Store text for saving
-        textMarkerToEdit.setIcon(L.divIcon({ 
-            className: 'text-label-icon', 
-            html: `<div style="transform: rotate(${textMarkerToEdit.rotation || 0}deg);">${text}</div>` 
-        }));
+        textMarkerToEdit.setIcon(textLabelIcon(text, textMarkerToEdit.rotation));
     } else {
         // Creating new text marker
-        const textIcon = L.divIcon({ className: 'text-label-icon', html: `<div>${text}</div>` });
-        const textMarker = L.marker(tempPinLatLng, { icon: textIcon, draggable: true }).addTo(drawnItems);
-        textMarker.isTextLabel = true;
-        textMarker.labelText = text;
-        textMarker.rotation = 0;
-
-        addLayerContextMenu(textMarker);
+        createTextLabel(tempPinLatLng, text, 0);
     }
     
     stopAllDrawing();
@@ -1009,10 +1243,7 @@ rotationSlider.addEventListener('input', () => {
         const angle = rotationSlider.value;
         rotationValue.innerText = `${angle}°`;
         textMarkerToEdit.rotation = angle;
-        textMarkerToEdit.setIcon(L.divIcon({ 
-            className: 'text-label-icon', 
-            html: `<div style="transform: rotate(${angle}deg);">${textMarkerToEdit.labelText}</div>` 
-        }));
+        textMarkerToEdit.setIcon(textLabelIcon(textMarkerToEdit.labelText, angle));
     }
 });
 
@@ -1033,29 +1264,7 @@ map.on('draw:created', function (e) {
             bindShapePopup(layer);
             return;
         }
-        const p1 = map.latLngToContainerPoint(latlngs[latlngs.length - 2]);
-        const p2 = map.latLngToContainerPoint(latlngs[latlngs.length - 1]);
-        const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x) * 180 / Math.PI;
-
-        const arrowhead = L.divIcon({
-            className: 'arrow-head',
-            html: `<div style="transform: rotate(${angle + 90}deg); transform-origin: center center;">
-                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="${layer.options.color}" width="24px" height="24px">
-                           <path d="M0 0h24v24H0z" fill="none"/><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/>
-                       </svg>
-                   </div>`,
-            iconSize: [24, 24],
-            iconAnchor: [12, 12]
-        });
-
-        const arrowMarker = L.marker(latlngs[latlngs.length - 1], { 
-            icon: arrowhead
-        });
-        
-        const arrowGroup = L.featureGroup([layer, arrowMarker]).addTo(drawnItems);
-        arrowGroup.isArrow = true;
-        addLayerContextMenu(arrowGroup);
-        bindShapePopup(arrowGroup);
+        createArrowFromLine(layer);
     } else {
         drawnItems.addLayer(layer);
         addLayerContextMenu(layer);
@@ -1116,3 +1325,18 @@ presetPalette.addEventListener('click', (e) => {
         colorPickerInstance.color.set(e.target.dataset.color);
     }
 });
+
+// --- Keyboard: Escape cancels the current tool, menu or dialog ---
+document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    hideContextMenu();
+    stopAllDrawing();
+    hideAllModals();
+    deleteAllConfirmModal.classList.add('hidden');
+});
+
+// --- Restore last session and keep autosaving ---
+restoreAutosave();
+autosaveNow();
+setInterval(autosaveNow, 2000);
+window.addEventListener('beforeunload', autosaveNow);
