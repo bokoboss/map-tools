@@ -375,3 +375,24 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
     #app-toast { transform: translate(-50%, 0) !important; }
 }
 .shortcut-caption { font-size: 12px; line-height: 1.4; color: #6b7280; margin-top: 8px; }
+
+/* ===== Inspector panels (non-modal editors docked beside the map) ===== */
+.inspector {
+    position: fixed; top: 16px; left: 16px; z-index: 1500;
+    width: 360px; max-height: calc(100vh - 32px); overflow-y: auto;
+}
+.inspector.hidden { display: none; }
+.inspector .modal-content {
+    max-width: none; width: 100%; padding: 16px 20px;
+    animation: inspectorIn 150ms ease-out both;
+}
+.inspector .modal-content h3 { font-size: 18px; line-height: 1.25; }
+@keyframes inspectorIn { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
+@media (max-width: 640px) {
+    .inspector { top: auto; left: 0; right: 0; bottom: 0; width: auto; max-height: 65vh; }
+    .inspector .modal-content { border-radius: 16px 16px 0 0; animation-name: inspectorUp; }
+    @keyframes inspectorUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+}
+body.exporting .inspector, body.export-framing .inspector { display: none; }
+.is-editing { outline: 3px solid #2563eb; outline-offset: 3px; border-radius: 8px; z-index: 1000 !important; }
+@media (prefers-reduced-motion: reduce) { .inspector .modal-content { animation: none !important; } }
