@@ -72,13 +72,13 @@
     <div id="controls-container" class="absolute top-4 right-4 z-[1000] flex flex-col items-end space-y-2">
         <!-- Search Control Wrapper -->
         <div class="relative">
-            <button id="toggle-search-btn" class="custom-leaflet-control" title="ค้นหาสถานที่">
+            <button id="toggle-search-btn" class="custom-leaflet-control" aria-label="ค้นหาสถานที่" data-tip="ค้นหาสถานที่">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
             </button>
-            <div id="search-panel" class="absolute top-full right-0 mt-2 md:top-0 md:right-full md:mt-0 md:mr-2 z-[1000] bg-white bg-opacity-95 p-4 rounded-xl shadow-lg flex-col space-y-2 border border-gray-200 transition-opacity duration-300 hidden w-64">
-                <h3 class="text-md font-semibold text-gray-800 text-center pb-2 border-b">ค้นหาสถานที่</h3>
+            <div id="search-panel" class="absolute top-full right-0 mt-2 md:top-0 md:right-full md:mt-0 md:mr-2 z-[1000] bg-white bg-opacity-95 p-4 rounded-xl ui-raised flex-col space-y-2 border border-gray-200 transition-opacity duration-300 hidden w-64">
+                <label for="search-input" class="text-md font-semibold text-gray-800 text-center pb-2 border-b block">ค้นหาสถานที่</label>
                 <div class="flex space-x-2">
-                    <input type="text" id="search-input" class="w-full p-2 text-sm border border-gray-300 rounded-lg" placeholder="ชื่อสถานที่, ที่อยู่, พิกัด">
+                    <input type="text" id="search-input" class="w-full p-2 text-sm border border-gray-300 rounded-lg" placeholder="เช่น สยามพารากอน หรือ 13.7466, 100.5393">
                     <button id="perform-search-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg text-sm">ค้นหา</button>
                 </div>
                 <div id="search-results" class="text-sm text-gray-600 mt-2"></div>
@@ -86,37 +86,37 @@
         </div>
         <!-- Layer Control Wrapper -->
         <div class="relative">
-            <button id="toggle-layers-btn" class="custom-leaflet-control" title="เปลี่ยนรูปแบบแผนที่">
+            <button id="toggle-layers-btn" class="custom-leaflet-control" aria-label="เปลี่ยนแผนที่พื้นหลัง" data-tip="เปลี่ยนแผนที่พื้นหลัง">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
             </button>
-            <div id="layer-panel" class="absolute top-full right-0 mt-2 md:top-0 md:right-full md:mt-0 md:mr-2 z-[1000] bg-white bg-opacity-95 p-4 rounded-xl shadow-lg flex-col space-y-2 border border-gray-200 transition-opacity duration-300 hidden w-56">
+            <div id="layer-panel" class="absolute top-full right-0 mt-2 md:top-0 md:right-full md:mt-0 md:mr-2 z-[1000] bg-white bg-opacity-95 p-4 rounded-xl ui-raised flex-col space-y-2 border border-gray-200 transition-opacity duration-300 hidden w-56">
                 <h3 class="text-md font-semibold text-gray-800 text-center pb-2 border-b">รูปแบบแผนที่</h3>
                 <div id="layer-options" class="flex flex-col space-y-1"></div>
             </div>
         </div>
         <!-- Main Tool Panel Wrapper -->
         <div class="relative">
-            <button id="toggle-tool-panel-btn" class="custom-leaflet-control" title="แสดง/ซ่อนเครื่องมือ">
+            <button id="toggle-tool-panel-btn" class="custom-leaflet-control" aria-label="เปิดเครื่องมือ" data-tip="เปิดเครื่องมือ">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
             </button>
-            <div id="main-tool-panel" class="absolute top-full right-0 mt-2 md:top-0 md:right-full md:mt-0 md:mr-2 z-[1000] bg-white bg-opacity-95 p-4 rounded-xl shadow-lg flex-col space-y-4 border border-gray-200 transition-opacity duration-300 hidden w-64 max-h-[calc(100vh-50px)] overflow-y-auto">
+            <div id="main-tool-panel" class="absolute top-full right-0 mt-2 md:top-0 md:right-full md:mt-0 md:mr-2 z-[1000] bg-white bg-opacity-95 p-4 rounded-xl ui-raised flex-col space-y-4 border border-gray-200 transition-opacity duration-300 hidden w-72 max-h-[calc(100vh-50px)] overflow-y-auto">
                 
                 <!-- เครื่องมือรูปทรง -->
                 <div>
                     <h3 class="text-sm font-semibold text-gray-600 mb-2">เครื่องมือรูปทรง</h3>
                     <div class="grid grid-cols-4 gap-2">
-                         <button id="draw-polyline-btn" class="flex items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="วาดเส้น">
+                         <button id="draw-polyline-btn" class="tool-btn">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="6" cy="18" r="1.5" stroke="none" fill="currentColor" /><circle cx="18" cy="6" r="1.5" stroke="none" fill="currentColor" /><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6" /></svg>
-                         </button>
-                         <button id="draw-polygon-btn" class="flex items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="วาดรูปหลายเหลี่ยม">
+                         <span class="tool-label">วาดเส้น</span></button>
+                         <button id="draw-polygon-btn" class="tool-btn">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.215 3.098a2.25 2.25 0 013.57 0l5.657 5.656a2.25 2.25 0 010 3.182l-5.657 5.657a2.25 2.25 0 01-3.182 0l-5.657-5.657a2.25 2.25 0 010-3.182L10.215 3.098z" /></svg>
-                         </button>
-                         <button id="draw-circle-btn" class="flex items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="วาดวงกลม">
+                         <span class="tool-label">วาดหลายเหลี่ยม</span></button>
+                         <button id="draw-circle-btn" class="tool-btn">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9" /></svg>
-                         </button>
-                         <button id="draw-rectangle-btn" class="flex items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="วาดสี่เหลี่ยม">
+                         <span class="tool-label">วาดวงกลม</span></button>
+                         <button id="draw-rectangle-btn" class="tool-btn">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 4h6a2 2 0 012 2v12a2 2 0 01-2 2H9a2 2 0 01-2-2V6a2 2 0 012-2z" /></svg>
-                         </button>
+                         <span class="tool-label">วาดสี่เหลี่ยม</span></button>
                     </div>
                 </div>
 
@@ -124,14 +124,14 @@
 
                 <!-- เครื่องมือ Annotation -->
                 <div>
-                    <h3 class="text-sm font-semibold text-gray-600 mb-2">เครื่องมือ Annotation</h3>
+                    <h3 class="text-sm font-semibold text-gray-600 mb-2">ลูกศรและข้อความ</h3>
                     <div class="grid grid-cols-3 gap-2">
-                         <button id="draw-arrow-btn" class="flex items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="วาดลูกศร">
+                         <button id="draw-arrow-btn" class="tool-btn">
                              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
-                         </button>
-                         <button id="add-text-btn" class="flex items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="เพิ่มข้อความ">
+                         <span class="tool-label">วาดลูกศร</span></button>
+                         <button id="add-text-btn" class="tool-btn">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10M9 7v10M6.5 7h-5m5 10h-5M14 7h5l3 5-3 5h-5" /></svg>
-                         </button>
+                         <span class="tool-label">เพิ่มข้อความ</span></button>
                     </div>
                 </div>
 
@@ -141,20 +141,20 @@
                 <div>
                     <h3 class="text-sm font-semibold text-gray-600 mb-2">เครื่องมือหมุด</h3>
                     <div class="grid grid-cols-4 gap-2">
-                        <button id="quick-pin-btn" class="flex items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="ปักหมุดเร็ว: คลิกบนแผนที่ทีละจุด">
+                        <button id="quick-pin-btn" class="tool-btn">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                        </button>
-                        <button id="add-pin-btn" class="flex items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="เพิ่มหมุดใหม่">
+                        <span class="tool-label">ปักหมุดเร็ว</span></button>
+                        <button id="add-pin-btn" class="tool-btn">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                        </button>
-                        <button id="toggle-labels-btn" class="flex items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="แสดงข้อความ">
+                        <span class="tool-label">เพิ่มหมุด</span></button>
+                        <button id="toggle-labels-btn" class="tool-btn">
                             <svg id="toggle-labels-icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
                             </svg>
-                        </button>
-                        <button id="toggle-legend-btn" class="flex items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="แสดง/ซ่อนคำอธิบายสัญลักษณ์">
+                        <span class="tool-label">ป้ายชื่อ</span></button>
+                        <button id="toggle-legend-btn" class="tool-btn">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h2m4 0h10M4 12h2m4 0h10M4 18h2m4 0h10" /></svg>
-                        </button>
+                        <span class="tool-label">สัญลักษณ์</span></button>
                     </div>
                 </div>
 
@@ -164,31 +164,32 @@
                 <div>
                     <h3 class="text-sm font-semibold text-gray-600 mb-2">เครื่องมือจัดการโปรเจกต์</h3>
                     <div class="grid grid-cols-3 gap-2">
-                        <button id="open-btn" class="flex items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="เปิดโปรเจกต์">
+                        <button id="open-btn" class="tool-btn">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" /></svg>
-                        </button>
-                        <button id="save-btn" class="flex items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="บันทึกโปรเจกต์">
+                        <span class="tool-label">เปิดไฟล์</span></button>
+                        <button id="save-btn" class="tool-btn">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
-                        </button>
-                        <button id="export-image-btn" class="flex items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="ส่งออกภาพ (สำหรับรายงาน)">
+                        <span class="tool-label">บันทึก</span></button>
+                        <button id="export-image-btn" class="tool-btn">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                        </button>
+                        <span class="tool-label">ส่งออกภาพ</span></button>
                     </div>
                     <p class="text-xs text-gray-500 mt-3 mb-1">ข้อมูลจุด</p>
                     <div class="grid grid-cols-3 gap-2">
-                        <button id="import-csv-btn" class="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-xs text-gray-700" title="นำเข้าจุดจากไฟล์ CSV">นำเข้า CSV</button>
-                        <button id="export-csv-btn" class="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-xs text-gray-700" title="ส่งออกรายการจุดเป็น CSV">ส่งออก CSV</button>
-                        <button id="export-kml-btn" class="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-xs text-gray-700" title="ส่งออก KML สำหรับ Google Earth / My Maps">ส่งออก KML</button>
+                        <button id="import-csv-btn" class="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-xs text-gray-700">นำเข้า CSV</button>
+                        <button id="export-csv-btn" class="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-xs text-gray-700">ส่งออก CSV</button>
+                        <button id="export-kml-btn" class="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-xs text-gray-700">ส่งออก KML</button>
                     </div>
                     <input type="file" id="import-csv-input" class="hidden" accept=".csv,text/csv">
                     <div class="grid grid-cols-2 gap-2 mt-2">
-                        <button id="undo-btn" class="flex items-center justify-center gap-1 p-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-xs text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed" title="ย้อนกลับ (Ctrl+Z)">
+                        <button id="undo-btn" class="flex items-center justify-center gap-1 p-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-xs text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed" aria-keyshortcuts="Control+Z">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" /></svg>ย้อนกลับ
                         </button>
-                        <button id="redo-btn" class="flex items-center justify-center gap-1 p-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-xs text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed" title="ทำซ้ำ (Ctrl+Y)">ทำซ้ำ
+                        <button id="redo-btn" class="flex items-center justify-center gap-1 p-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-xs text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed" aria-keyshortcuts="Control+Y">ทำซ้ำ
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 15l6-6m0 0l-6-6m6 6H9a6 6 0 000 12h3" /></svg>
                         </button>
                     </div>
+                    <p class="shortcut-caption">คีย์ลัด <kbd class="kbd-hint">Ctrl+Z</kbd> ย้อนกลับ · <kbd class="kbd-hint">Ctrl+Y</kbd> ทำซ้ำ</p>
                     <div class="mt-4">
                         <button id="delete-all-btn" class="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg shadow-sm transition duration-300 text-sm">ลบข้อมูลทั้งหมด</button>
                     </div>
@@ -198,7 +199,7 @@
         </div>
         <!-- Info/Help Button Wrapper -->
         <div class="relative">
-            <button id="toggle-info-btn" class="custom-leaflet-control" title="วิธีใช้งาน">
+            <button id="toggle-info-btn" class="custom-leaflet-control" aria-label="เปิดวิธีใช้งาน" data-tip="เปิดวิธีใช้งาน">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
@@ -208,19 +209,19 @@
 
     <!-- Modal for creating/editing pin -->
     <div id="pin-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 z-[2000] flex items-center justify-center p-4">
-        <div class="modal-content bg-white p-6 rounded-lg shadow-xl w-full max-w-sm">
-            <h3 id="modal-title" class="text-xl font-bold text-gray-800 mb-4"></h3>
+        <div class="modal-content bg-white p-6 rounded-lg ui-raised border border-gray-200 w-full max-w-sm">
+            <h3 id="modal-title" class="text-xl font-semibold text-gray-800 mb-4"></h3>
             <label for="pin-type-select" class="block text-sm font-medium text-gray-600 mb-1">ประเภทจุด</label>
             <select id="pin-type-select" class="w-full p-2 text-sm border border-gray-300 rounded-lg mb-3 bg-white"></select>
             <div id="pin-code-row" class="mb-3 hidden">
                 <label for="pin-code-input" class="block text-sm font-medium text-gray-600 mb-1">รหัสจุด</label>
                 <input type="text" id="pin-code-input" class="w-full p-2 text-sm border border-gray-300 rounded-lg" placeholder="TMC-01">
             </div>
-            <label for="pin-label-input" class="block text-sm font-medium text-gray-600 mb-1">ชื่อ / รายละเอียด</label>
+            <label for="pin-label-input" class="block text-sm font-medium text-gray-600 mb-1">ชื่อ / รายละเอียด <span class="text-gray-400 font-normal">(ไม่บังคับ)</span></label>
             <input type="text" id="pin-label-input" class="w-full p-2 text-sm border border-gray-300 rounded-lg mb-4" placeholder="ข้อความของหมุด">
             <div id="pin-color-row" class="mb-4">
                 <p class="text-sm font-medium text-gray-600 mb-2">สีสำหรับหมุด:</p>
-                <button id="marker-color-selector" class="w-full h-10 rounded-lg border border-gray-300"></button>
+                <button id="marker-color-selector" aria-label="เลือกสีหมุด" class="w-full h-10 rounded-lg border border-gray-300"></button>
             </div>
             <div id="radius-management-section" class="mb-6 border-t pt-4">
                  <button id="manage-radius-btn" class="w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-300 text-sm">จัดการรัศมี</button>
@@ -237,13 +238,14 @@
 
     <!-- Modal for managing radii -->
     <div id="radius-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 z-[2500] flex items-center justify-center p-4">
-        <div class="modal-content bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
-            <h3 class="text-xl font-bold text-gray-800 mb-4">จัดการรัศมี</h3>
+        <div class="modal-content bg-white p-6 rounded-lg ui-raised border border-gray-200 w-full max-w-md">
+            <h3 class="text-xl font-semibold text-gray-800 mb-4">จัดการรัศมี</h3>
             <div class="bg-gray-50 p-4 rounded-lg border mb-4">
                 <h4 id="radius-form-title" class="font-semibold text-gray-700 mb-2">เพิ่มวงรัศมีใหม่</h4>
+                <label for="radius-input" class="block text-sm text-gray-600 mb-1">ระยะรัศมี (เมตร)</label>
                 <div class="flex items-center space-x-2">
-                    <input type="number" id="radius-input" class="w-full p-2 text-sm border border-gray-300 rounded-lg" placeholder="ระยะรัศมี (เมตร)" step="any">
-                    <button id="radius-color-selector" class="h-10 w-12 rounded-lg border border-gray-300 flex-shrink-0"></button>
+                    <input type="number" id="radius-input" class="w-full p-2 text-sm border border-gray-300 rounded-lg" placeholder="เช่น 100" step="any" min="0">
+                    <button id="radius-color-selector" aria-label="เลือกสีวงรัศมี" class="h-11 w-12 rounded-lg border border-gray-300 flex-shrink-0"></button>
                     <button id="add-radius-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg text-sm">เพิ่ม</button>
                     <button id="cancel-edit-radius-btn" class="hidden bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg text-sm">ยกเลิก</button>
                 </div>
@@ -259,8 +261,8 @@
     
     <!-- Advanced Color Picker Modal -->
     <div id="color-picker-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 z-[4000] flex items-center justify-center p-4">
-        <div class="modal-content bg-white p-5 rounded-lg shadow-xl w-full max-w-xs">
-            <h3 class="text-lg font-bold text-gray-800 mb-3">เลือกสี</h3>
+        <div class="modal-content bg-white p-5 rounded-lg ui-raised border border-gray-200 w-full max-w-xs">
+            <h3 class="text-lg font-semibold text-gray-800 mb-3">เลือกสี</h3>
             <div class="flex justify-center mb-3 color-picker-wrapper">
                 <div id="color-picker-widget"></div>
             </div>
@@ -277,31 +279,31 @@
                 </div>
                 <div class="flex items-center space-x-2">
                     <label class="font-semibold text-gray-700 w-10">RGB</label>
-                    <input type="number" id="rgb-r-input" class="w-full p-1 border rounded-md text-xs" min="0" max="255">
-                    <input type="number" id="rgb-g-input" class="w-full p-1 border rounded-md text-xs" min="0" max="255">
-                    <input type="number" id="rgb-b-input" class="w-full p-1 border rounded-md text-xs" min="0" max="255">
+                    <input type="number" id="rgb-r-input" aria-label="RGB แดง (0–255)" class="w-full p-1 border rounded-md text-xs" min="0" max="255">
+                    <input type="number" id="rgb-g-input" aria-label="RGB เขียว (0–255)" class="w-full p-1 border rounded-md text-xs" min="0" max="255">
+                    <input type="number" id="rgb-b-input" aria-label="RGB น้ำเงิน (0–255)" class="w-full p-1 border rounded-md text-xs" min="0" max="255">
                 </div>
                  <div class="flex items-center space-x-2">
                     <label class="font-semibold text-gray-700 w-10">HSL</label>
-                    <input type="number" id="hsl-h-input" class="w-full p-1 border rounded-md text-xs" min="0" max="360">
-                    <input type="number" id="hsl-s-input" class="w-full p-1 border rounded-md text-xs" min="0" max="100">
-                    <input type="number" id="hsl-l-input" class="w-full p-1 border rounded-md text-xs" min="0" max="100">
+                    <input type="number" id="hsl-h-input" aria-label="HSL Hue (0–360)" class="w-full p-1 border rounded-md text-xs" min="0" max="360">
+                    <input type="number" id="hsl-s-input" aria-label="HSL Saturation (%)" class="w-full p-1 border rounded-md text-xs" min="0" max="100">
+                    <input type="number" id="hsl-l-input" aria-label="HSL Lightness (%)" class="w-full p-1 border rounded-md text-xs" min="0" max="100">
                 </div>
             </div>
             <div class="mt-4 flex justify-end space-x-3">
                 <button id="cancel-color-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg text-sm">ยกเลิก</button>
-                <button id="confirm-color-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg text-sm">ตกลง</button>
+                <button id="confirm-color-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg text-sm">ใช้สีนี้</button>
             </div>
         </div>
     </div>
 
     <!-- Modal for editing shape color -->
     <div id="shape-edit-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 z-[2000] flex items-center justify-center p-4">
-        <div class="modal-content bg-white p-6 rounded-lg shadow-xl w-full max-w-xs">
-            <h3 class="text-xl font-bold text-gray-800 mb-4">แก้ไขสีรูปทรง</h3>
+        <div class="modal-content bg-white p-6 rounded-lg ui-raised border border-gray-200 w-full max-w-xs">
+            <h3 class="text-xl font-semibold text-gray-800 mb-4">แก้ไขสีรูปทรง</h3>
             <div class="mb-4">
                 <p class="text-sm font-medium text-gray-600 mb-2">สีใหม่:</p>
-                <button id="shape-color-selector" class="w-full h-10 rounded-lg border border-gray-300"></button>
+                <button id="shape-color-selector" aria-label="เลือกสีรูปทรง" class="w-full h-10 rounded-lg border border-gray-300"></button>
             </div>
             <div class="flex justify-end">
                 <button id="close-shape-edit-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg text-sm">ปิด</button>
@@ -311,9 +313,10 @@
 
     <!-- Modal for adding/editing text label -->
     <div id="text-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 z-[2000] flex items-center justify-center p-4">
-        <div class="modal-content bg-white p-6 rounded-lg shadow-xl w-full max-w-sm">
-            <h3 id="text-modal-title" class="text-xl font-bold text-gray-800 mb-4">เพิ่มข้อความ</h3>
-            <input type="text" id="text-label-input" class="w-full p-2 text-sm border border-gray-300 rounded-lg mb-4" placeholder="ใส่ข้อความที่นี่">
+        <div class="modal-content bg-white p-6 rounded-lg ui-raised border border-gray-200 w-full max-w-sm">
+            <h3 id="text-modal-title" class="text-xl font-semibold text-gray-800 mb-4">เพิ่มข้อความ</h3>
+            <label for="text-label-input" class="block text-sm text-gray-600 mb-1">ข้อความ</label>
+            <input type="text" id="text-label-input" class="w-full p-2 text-sm border border-gray-300 rounded-lg mb-4" placeholder="เช่น ทางเข้าโครงการ">
              <div id="text-actions-container" class="hidden items-center justify-between">
                 <div>
                     <button id="rotate-text-btn" class="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg text-sm">หมุน</button>
@@ -333,52 +336,52 @@
     
     <!-- Modal for rotating text -->
     <div id="rotate-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 z-[2500] flex items-center justify-center p-4">
-        <div class="modal-content bg-white p-6 rounded-lg shadow-xl w-full max-w-xs">
-            <h3 class="text-xl font-bold text-gray-800 mb-4">หมุนข้อความ</h3>
+        <div class="modal-content bg-white p-6 rounded-lg ui-raised border border-gray-200 w-full max-w-xs">
+            <h3 id="rotate-title" class="text-xl font-semibold text-gray-800 mb-4">หมุนข้อความ</h3>
             <div class="flex items-center space-x-3">
-                <input type="range" id="rotation-slider" min="0" max="360" value="0" class="w-full">
+                <input type="range" aria-labelledby="rotate-title" id="rotation-slider" min="0" max="360" value="0" class="w-full">
                 <span id="rotation-value" class="font-semibold w-12 text-center text-sm text-gray-700">0°</span>
             </div>
             <div class="mt-6 flex justify-end">
-                <button id="close-rotate-modal-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg text-sm">ตกลง</button>
+                <button id="close-rotate-modal-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg text-sm">ปิด</button>
             </div>
         </div>
     </div>
 
     <!-- Generic Delete Confirmation Modal -->
     <div id="delete-confirm-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 z-[3000] flex items-center justify-center p-4">
-        <div class="modal-content bg-white p-6 rounded-lg shadow-xl w-full max-w-xs text-center">
-            <h3 class="text-xl font-bold text-gray-800 mb-2">ยืนยันการลบ</h3>
+        <div class="modal-content bg-white p-6 rounded-lg ui-raised border border-gray-200 w-full max-w-xs text-center">
+            <h3 id="delete-confirm-title" class="text-xl font-semibold text-gray-800 mb-2">ลบรายการนี้?</h3>
             <p id="delete-confirm-message" class="text-gray-600 mb-6 text-sm"></p>
             <div class="flex justify-center space-x-3">
                 <button id="cancel-delete-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg text-sm">ยกเลิก</button>
-                <button id="confirm-delete-btn" class="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg text-sm">ยืนยัน</button>
+                <button id="confirm-delete-btn" class="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg text-sm">ลบ</button>
             </div>
         </div>
     </div>
-    <div id="delete-all-confirm-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 z-[3000] flex items-center justify-center p-4"><div class="modal-content bg-white p-6 rounded-lg shadow-xl w-full max-w-xs text-center"><h3 class="text-xl font-bold text-gray-800 mb-2">ยืนยันการลบทั้งหมด</h3><p class="text-gray-600 mb-6 text-sm">คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลทั้งหมด?</p><div class="flex justify-center space-x-3"><button id="cancel-delete-all-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg text-sm">ยกเลิก</button><button id="confirm-delete-all-btn" class="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg text-sm">ยืนยัน</button></div></div></div>
+    <div id="delete-all-confirm-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 z-[3000] flex items-center justify-center p-4"><div class="modal-content bg-white p-6 rounded-lg ui-raised border border-gray-200 w-full max-w-xs text-center"><h3 class="text-xl font-semibold text-gray-800 mb-2">ลบข้อมูลทั้งหมด?</h3><p id="delete-all-message" class="text-gray-600 mb-6 text-sm">ลบหมุดและรูปทรงทั้งหมดออกจากแผนที่?</p><div class="flex justify-center space-x-3"><button id="cancel-delete-all-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg text-sm">ยกเลิก</button><button id="confirm-delete-all-btn" class="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg text-sm">ลบทั้งหมด</button></div></div></div>
 
     <!-- Hidden file input for opening projects -->
     <input type="file" id="file-input" class="hidden" accept=".json">
     
     <!-- Loading overlay for image export -->
     <div id="loading-overlay" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[5000] flex items-center justify-center">
-        <div class="bg-white p-6 rounded-lg shadow-xl text-center">
+        <div class="bg-white p-6 rounded-lg ui-raised border border-gray-200 text-center">
             <p class="text-lg font-semibold text-gray-800">กำลังสร้างรูปภาพ...</p>
         </div>
     </div>
 
     <!-- Custom Context Menu -->
-    <div id="context-menu" class="hidden absolute z-[5000] bg-white rounded-lg shadow-xl border border-gray-200 min-w-[180px] py-1">
+    <div id="context-menu" class="hidden absolute z-[5000] bg-white rounded-lg ui-raised border border-gray-200 border border-gray-200 min-w-[180px] py-1">
         <!-- Menu items will be populated by JS -->
     </div>
 
     <!-- Info/Help Modal -->
     <div id="info-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 z-[3000] flex items-center justify-center p-4">
-        <div class="modal-content bg-white p-6 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+        <div class="modal-content bg-white p-6 rounded-lg ui-raised border border-gray-200 w-full max-w-2xl max-h-[90vh] flex flex-col">
             <div class="flex justify-between items-center mb-4 border-b pb-3">
-                <h3 class="text-xl font-bold text-gray-800">วิธีใช้งานแอปพลิเคชัน</h3>
-                <button id="close-info-btn" class="text-gray-500 hover:text-gray-800 text-3xl leading-none">&times;</button>
+                <h3 class="text-xl font-semibold text-gray-800">วิธีใช้งานแอปพลิเคชัน</h3>
+                <button id="close-info-btn" aria-label="ปิดวิธีใช้งาน" class="text-gray-500 hover:text-gray-800 text-3xl leading-none">&times;</button>
             </div>
             <div class="overflow-y-auto space-y-4 text-sm text-gray-700 pr-2">
                 <p>ยินดีต้อนรับสู่แอปพลิเคชันเครื่องมือบนแผนที่! นี่คือคู่มือการใช้งานเบื้องต้นเพื่อให้คุณเริ่มต้นได้อย่างรวดเร็ว</p>
