@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web App เครื่องมือบนแผนที่</title>
+
+    <!-- LeafletJS CSS for map rendering -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+     crossorigin=""/>
+
+    <!-- Leaflet.draw Plugin CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    
+    <!-- Google Fonts: Sarabun -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Link to your custom CSS file -->
+    <link rel="stylesheet" href="style.css">
+
+</head>
+<body class="overflow-hidden">
+
+    <!-- The main container for the map -->
+    <div id="map"></div>
+
+    <!-- Container for all top-right controls -->
+    <div id="controls-container" class="absolute top-4 right-4 z-[1000] flex flex-col items-end space-y-2">
+        <!-- Search Control Wrapper -->
+        <div class="relative">
+            <button id="toggle-search-btn" class="custom-leaflet-control" title="ค้นหาสถานที่">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+            </button>
+            <div id="search-panel" class="absolute top-full right-0 mt-2 md:top-0 md:right-full md:mt-0 md:mr-2 z-[1000] bg-white bg-opacity-95 p-4 rounded-xl shadow-lg flex-col space-y-2 border border-gray-200 transition-opacity duration-300 hidden w-64">
+                <h3 class="text-md font-semibold text-gray-800 text-center pb-2 border-b">ค้นหาสถานที่</h3>
+                <div class="flex space-x-2">
+                    <input type="text" id="search-input" class="w-full p-2 text-sm border border-gray-300 rounded-lg" placeholder="ชื่อสถานที่, ที่อยู่, พิกัด">
+                    <button id="perform-search-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg text-sm">ค้นหา</button>
+                </div>
+                <div id="search-results" class="text-sm text-gray-600 mt-2"></div>
+            </div>
+        </div>
+        <!-- Layer Control Wrapper -->
+        <div class="relative">
+            <button id="toggle-layers-btn" class="custom-leaflet-control" title="เปลี่ยนรูปแบบแผนที่">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+            </button>
+            <div id="layer-panel" class="absolute top-full right-0 mt-2 md:top-0 md:right-full md:mt-0 md:mr-2 z-[1000] bg-white bg-opacity-95 p-4 rounded-xl shadow-lg flex-col space-y-2 border border-gray-200 transition-opacity duration-300 hidden w-56">
+                <h3 class="text-md font-semibold text-gray-800 text-center pb-2 border-b">รูปแบบแผนที่</h3>
+                <div id="layer-options" class="flex flex-col space-y-1"></div>
+            </div>
+        </div>
+        <!-- Main Tool Panel Wrapper -->
+        <div class="relative">
+            <button id="toggle-tool-panel-btn" class="custom-leaflet-control" title="แสดง/ซ่อนเครื่องมือ">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+            </button>
+            <div id="main-tool-panel" class="absolute top-full right-0 mt-2 md:top-0 md:right-full md:mt-0 md:mr-2 z-[1000] bg-white bg-opacity-95 p-4 rounded-xl shadow-lg flex-col space-y-4 border border-gray-200 transition-opacity duration-300 hidden w-64 max-h-[calc(100vh-50px)] overflow-y-auto">
+                
+                <!-- เครื่องมือรูปทรง -->
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-600 mb-2">เครื่องมือรูปทรง</h3>
+                    <div class="grid grid-cols-4 gap-2">
+                         <button id="draw-polyline-btn" class="flex items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="วาดเส้น">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="6" cy="18" r="1.5" stroke="none" fill="currentColor" /><circle cx="18" cy="6" r="1.5" stroke="none" fill="currentColor" /><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6" /></svg>
+                         </button>
+                         <button id="draw-polygon-btn" class="flex items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="วาดรูปหลายเหลี่ยม">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.215 3.098a2.25 2.25 0 013.57 0l5.657 5.656a2.25 2.25 0 010 3.182l-5.657 5.657a2.25 2.25 0 01-3.182 0l-5.657-5.657a2.25 2.25 0 010-3.182L10.215 3.098z" /></svg>
+                         </button>
+                         <button id="draw-circle-btn" class="flex items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="วาดวงกลม">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9" /></svg>
+                         </button>
+                         <button id="draw-rectangle-btn" class="flex items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="วาดสี่เหลี่ยม">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 4h6a2 2 0 012 2v12a2 2 0 01-2 2H9a2 2 0 01-2-2V6a2 2 0 012-2z" /></svg>
+                         </button>
+                    </div>
+                </div>
+
+                <hr>
+
+                <!-- เครื่องมือ Annotation -->
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-600 mb-2">เครื่องมือ Annotation</h3>
+                    <div class="grid grid-cols-3 gap-2">
+                         <button id="draw-arrow-btn" class="flex items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="วาดลูกศร">
+                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+                         </button>
+                         <button id="add-text-btn" class="flex items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="เพิ่มข้อความ">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10M9 7v10M6.5 7h-5m5 10h-5M14 7h5l3 5-3 5h-5" /></svg>
+                         </button>
+                    </div>
+                </div>
+
+                <hr>
+
+                <!-- เครื่องมือหมุด -->
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-600 mb-2">เครื่องมือหมุด</h3>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button id="add-pin-btn" class="flex items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="เพิ่มหมุดใหม่">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                        </button>
+                        <button id="toggle-labels-btn" class="flex items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="แสดงข้อความ">
+                            <svg id="toggle-labels-icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <hr>
+
+                <!-- เครื่องมือจัดการโปรเจกต์ -->
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-600 mb-2">เครื่องมือจัดการโปรเจกต์</h3>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button id="open-btn" class="flex items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="เปิดโปรเจกต์">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" /></svg>
+                        </button>
+                        <button id="save-btn" class="flex items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="บันทึกโปรเจกต์">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
+                        </button>
+                        <button id="export-image-btn" class="flex items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="ส่งออกเป็นรูปภาพ">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                        </button>
+                    </div>
+                    <div class="mt-4">
+                        <button id="delete-all-btn" class="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg shadow-sm transition duration-300 text-sm">ลบข้อมูลทั้งหมด</button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+        <!-- Info/Help Button Wrapper -->
+        <div class="relative">
+            <button id="toggle-info-btn" class="custom-leaflet-control" title="วิธีใช้งาน">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- Modal for creating/editing pin -->
+    <div id="pin-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 z-[2000] flex items-center justify-center p-4">
+        <div class="modal-content bg-white p-6 rounded-lg shadow-xl w-full max-w-sm">
+            <h3 id="modal-title" class="text-xl font-bold text-gray-800 mb-4"></h3>
+            <input type="text" id="pin-label-input" class="w-full p-2 text-sm border border-gray-300 rounded-lg mb-4" placeholder="ข้อความของหมุด">
+            <div class="mb-4">
+                <p class="text-sm font-medium text-gray-600 mb-2">สีสำหรับหมุด:</p>
+                <button id="marker-color-selector" class="w-full h-10 rounded-lg border border-gray-300"></button>
+            </div>
+            <div id="radius-management-section" class="mb-6 border-t pt-4">
+                 <button id="manage-radius-btn" class="w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-300 text-sm">จัดการรัศมี</button>
+            </div>
+            <div class="flex justify-between items-center">
+                <button id="delete-pin-btn" class="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg text-sm">ลบหมุด</button>
+                <div class="flex justify-end space-x-3">
+                    <button id="cancel-pin-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg text-sm">ยกเลิก</button>
+                    <button id="save-pin-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg text-sm">บันทึก</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for managing radii -->
+    <div id="radius-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 z-[2500] flex items-center justify-center p-4">
+        <div class="modal-content bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">จัดการรัศมี</h3>
+            <div class="bg-gray-50 p-4 rounded-lg border mb-4">
+                <h4 id="radius-form-title" class="font-semibold text-gray-700 mb-2">เพิ่มวงรัศมีใหม่</h4>
+                <div class="flex items-center space-x-2">
+                    <input type="number" id="radius-input" class="w-full p-2 text-sm border border-gray-300 rounded-lg" placeholder="ระยะรัศมี (เมตร)" step="any">
+                    <button id="radius-color-selector" class="h-10 w-12 rounded-lg border border-gray-300 flex-shrink-0"></button>
+                    <button id="add-radius-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg text-sm">เพิ่ม</button>
+                    <button id="cancel-edit-radius-btn" class="hidden bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg text-sm">ยกเลิก</button>
+                </div>
+            </div>
+            <div id="radius-list" class="max-h-60 overflow-y-auto space-y-2">
+                <!-- Radius items will be populated here -->
+            </div>
+             <div class="mt-6 flex justify-end">
+                <button id="close-radius-modal-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg text-sm">ปิด</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Advanced Color Picker Modal -->
+    <div id="color-picker-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 z-[4000] flex items-center justify-center p-4">
+        <div class="modal-content bg-white p-5 rounded-lg shadow-xl w-full max-w-xs">
+            <h3 class="text-lg font-bold text-gray-800 mb-3">เลือกสี</h3>
+            <div class="flex justify-center mb-3 color-picker-wrapper">
+                <div id="color-picker-widget"></div>
+            </div>
+            <div class="mb-3 border-t pt-3">
+                <p class="text-xs font-medium text-gray-600 mb-2">สีที่ใช้บ่อย:</p>
+                <div id="preset-palette" class="grid grid-cols-6 gap-2">
+                    <!-- Preset swatches will be added here by JS -->
+                </div>
+            </div>
+            <div class="space-y-2 text-xs">
+                <div class="flex items-center space-x-2">
+                    <label for="hex-input" class="font-semibold text-gray-700 w-10">HEX</label>
+                    <input type="text" id="hex-input" class="w-full p-1 border rounded-md text-xs">
+                </div>
+                <div class="flex items-center space-x-2">
+                    <label class="font-semibold text-gray-700 w-10">RGB</label>
+                    <input type="number" id="rgb-r-input" class="w-full p-1 border rounded-md text-xs" min="0" max="255">
+                    <input type="number" id="rgb-g-input" class="w-full p-1 border rounded-md text-xs" min="0" max="255">
+                    <input type="number" id="rgb-b-input" class="w-full p-1 border rounded-md text-xs" min="0" max="255">
+                </div>
+                 <div class="flex items-center space-x-2">
+                    <label class="font-semibold text-gray-700 w-10">HSL</label>
+                    <input type="number" id="hsl-h-input" class="w-full p-1 border rounded-md text-xs" min="0" max="360">
+                    <input type="number" id="hsl-s-input" class="w-full p-1 border rounded-md text-xs" min="0" max="100">
+                    <input type="number" id="hsl-l-input" class="w-full p-1 border rounded-md text-xs" min="0" max="100">
+                </div>
+            </div>
+            <div class="mt-4 flex justify-end space-x-3">
+                <button id="cancel-color-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg text-sm">ยกเลิก</button>
+                <button id="confirm-color-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg text-sm">ตกลง</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for editing shape color -->
+    <div id="shape-edit-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 z-[2000] flex items-center justify-center p-4">
+        <div class="modal-content bg-white p-6 rounded-lg shadow-xl w-full max-w-xs">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">แก้ไขสีรูปทรง</h3>
+            <div class="mb-4">
+                <p class="text-sm font-medium text-gray-600 mb-2">สีใหม่:</p>
+                <button id="shape-color-selector" class="w-full h-10 rounded-lg border border-gray-300"></button>
+            </div>
+            <div class="flex justify-end">
+                <button id="close-shape-edit-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg text-sm">ปิด</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for adding/editing text label -->
+    <div id="text-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 z-[2000] flex items-center justify-center p-4">
+        <div class="modal-content bg-white p-6 rounded-lg shadow-xl w-full max-w-sm">
+            <h3 id="text-modal-title" class="text-xl font-bold text-gray-800 mb-4">เพิ่มข้อความ</h3>
+            <input type="text" id="text-label-input" class="w-full p-2 text-sm border border-gray-300 rounded-lg mb-4" placeholder="ใส่ข้อความที่นี่">
+             <div id="text-actions-container" class="hidden items-center justify-between">
+                <div>
+                    <button id="rotate-text-btn" class="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg text-sm">หมุน</button>
+                    <button id="delete-text-btn" class="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg text-sm">ลบ</button>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button id="cancel-text-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg text-sm">ยกเลิก</button>
+                    <button id="save-text-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg text-sm">บันทึก</button>
+                </div>
+            </div>
+             <div id="new-text-actions-container" class="flex justify-end space-x-3">
+                <button id="cancel-new-text-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg text-sm">ยกเลิก</button>
+                <button id="save-new-text-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg text-sm">บันทึก</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal for rotating text -->
+    <div id="rotate-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 z-[2500] flex items-center justify-center p-4">
+        <div class="modal-content bg-white p-6 rounded-lg shadow-xl w-full max-w-xs">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">หมุนข้อความ</h3>
+            <div class="flex items-center space-x-3">
+                <input type="range" id="rotation-slider" min="0" max="360" value="0" class="w-full">
+                <span id="rotation-value" class="font-semibold w-12 text-center text-sm text-gray-700">0°</span>
+            </div>
+            <div class="mt-6 flex justify-end">
+                <button id="close-rotate-modal-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg text-sm">ตกลง</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Generic Delete Confirmation Modal -->
+    <div id="delete-confirm-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 z-[3000] flex items-center justify-center p-4">
+        <div class="modal-content bg-white p-6 rounded-lg shadow-xl w-full max-w-xs text-center">
+            <h3 class="text-xl font-bold text-gray-800 mb-2">ยืนยันการลบ</h3>
+            <p id="delete-confirm-message" class="text-gray-600 mb-6 text-sm"></p>
+            <div class="flex justify-center space-x-3">
+                <button id="cancel-delete-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg text-sm">ยกเลิก</button>
+                <button id="confirm-delete-btn" class="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg text-sm">ยืนยัน</button>
+            </div>
+        </div>
+    </div>
+    <div id="delete-all-confirm-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 z-[3000] flex items-center justify-center p-4"><div class="modal-content bg-white p-6 rounded-lg shadow-xl w-full max-w-xs text-center"><h3 class="text-xl font-bold text-gray-800 mb-2">ยืนยันการลบทั้งหมด</h3><p class="text-gray-600 mb-6 text-sm">คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลทั้งหมด?</p><div class="flex justify-center space-x-3"><button id="cancel-delete-all-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg text-sm">ยกเลิก</button><button id="confirm-delete-all-btn" class="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg text-sm">ยืนยัน</button></div></div></div>
+
+    <!-- Hidden file input for opening projects -->
+    <input type="file" id="file-input" class="hidden" accept=".json">
+    
+    <!-- Loading overlay for image export -->
+    <div id="loading-overlay" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[5000] flex items-center justify-center">
+        <div class="bg-white p-6 rounded-lg shadow-xl text-center">
+            <p class="text-lg font-semibold text-gray-800">กำลังสร้างรูปภาพ...</p>
+        </div>
+    </div>
+
+    <!-- Custom Context Menu -->
+    <div id="context-menu" class="hidden absolute z-[5000] bg-white rounded-lg shadow-xl border border-gray-200 min-w-[180px] py-1">
+        <!-- Menu items will be populated by JS -->
+    </div>
+
+    <!-- Info/Help Modal -->
+    <div id="info-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 z-[3000] flex items-center justify-center p-4">
+        <div class="modal-content bg-white p-6 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center mb-4 border-b pb-3">
+                <h3 class="text-xl font-bold text-gray-800">วิธีใช้งานแอปพลิเคชัน</h3>
+                <button id="close-info-btn" class="text-gray-500 hover:text-gray-800 text-3xl leading-none">&times;</button>
+            </div>
+            <div class="overflow-y-auto space-y-4 text-sm text-gray-700 pr-2">
+                <p>ยินดีต้อนรับสู่แอปพลิเคชันเครื่องมือบนแผนที่! นี่คือคู่มือการใช้งานเบื้องต้นเพื่อให้คุณเริ่มต้นได้อย่างรวดเร็ว</p>
+                
+                <div>
+                    <h4 class="text-lg font-semibold text-gray-800 mb-2">🗺️ 1. การควบคุมแผนที่พื้นฐาน</h4>
+                    <ul class="list-disc list-inside space-y-1">
+                        <li><b>เลื่อนแผนที่:</b> คลิกซ้ายค้างแล้วลากเพื่อเลื่อนไปยังพื้นที่ที่ต้องการ</li>
+                        <li><b>ซูมเข้า/ออก:</b> ใช้ Scroll Wheel ของเมาส์ หรือใช้ปุ่ม <code>+</code> / <code>-</code> ที่มุมขวาล่าง</li>
+                        <li><b>เปลี่ยนรูปแบบแผนที่:</b> คลิกไอคอนรูปชั้น (Layers) ที่มุมขวาบนเพื่อเลือกรูปแบบแผนที่</li>
+                        <li><b>ค้นหาสถานที่:</b> คลิกไอคอนรูปแว่นขยาย, พิมพ์ชื่อสถานที่, แล้วกด "ค้นหา"</li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h4 class="text-lg font-semibold text-gray-800 mb-2">🖱️ 2. เมนูลัด (คลิกขวา)</h4>
+                    <p>การคลิกขวาเป็นวิธีที่รวดเร็วที่สุดในการใช้งาน:</p>
+                    <ul class="list-disc list-inside space-y-1 mt-1">
+                        <li><b>คลิกขวาบนพื้นที่ว่าง:</b>
+                            <ul class="list-circle list-inside ml-4">
+                                <li><b>แสดงข้อมูลตำแหน่ง:</b> จะมีหน้าต่างแสดงข้อมูลที่อยู่และพิกัด ณ จุดนั้น</li>
+                                <li><b>เพิ่มหมุดที่นี่:</b> สร้างหมุดใหม่ ณ ตำแหน่งที่คลิกทันที</li>
+                            </ul>
+                        </li>
+                        <li><b>คลิกขวาบนวัตถุ (หมุด/รูปทรง/ข้อความ):</b>
+                            <ul class="list-circle list-inside ml-4">
+                                <li>จะปรากฏเมนูคำสั่งที่เกี่ยวข้องกับวัตถุนั้นๆ เช่น แก้ไข, เปลี่ยนสี, ลบ</li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h4 class="text-lg font-semibold text-gray-800 mb-2">🛠️ 3. การใช้เครื่องมือ (Tool Panel)</h4>
+                    <p>คลิกไอคอนรูปเฟือง (⚙️) เพื่อเปิดแผงเครื่องมือ ซึ่งแบ่งเป็นหมวดหมู่ต่างๆ ดังนี้:</p>
+                    <ul class="list-disc list-inside space-y-1 mt-1">
+                        <li><b>เครื่องมือรูปทรง:</b> วาดเส้น, รูปหลายเหลี่ยม, วงกลม, สี่เหลี่ยม</li>
+                        <li><b>เครื่องมือ Annotation:</b> วาดลูกศร, เพิ่มข้อความ</li>
+                        <li><b>เครื่องมือหมุด:</b> เพิ่มหมุด, แสดง/ซ่อนข้อความหมุด</li>
+                        <li><b>เครื่องมือจัดการโปรเจกต์:</b> เปิด/บันทึกไฟล์, ส่งออกเป็นรูปภาพ, ลบข้อมูลทั้งหมด</li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h4 class="text-lg font-semibold text-gray-800 mb-2">✨ 4. การจัดการวัตถุ</h4>
+                    <ul class="list-disc list-inside space-y-1">
+                        <li><b>แก้ไขหมุด/ข้อความ:</b> ดับเบิ้ลคลิกที่หมุดหรือข้อความเพื่อเปิดหน้าต่างแก้ไข</li>
+                        <li><b>แก้ไขรูปทรง/ลูกศร:</b> คลิกที่รูปทรงเพื่อเปิด Popup จากนั้นคลิกไอคอนดินสอ (✏️) เพื่อเข้าสู่โหมดแก้ไขจุดต่างๆ</li>
+                        <li><b>เปลี่ยนสี/ลบ:</b> คลิกที่รูปทรงเพื่อเปิด Popup หรือคลิกขวาที่วัตถุใดๆ เพื่อเรียกใช้คำสั่ง</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- External JavaScript Libraries -->
+    <!-- iro.js Color Picker Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@jaames/iro@5"></script>
+    <!-- html2canvas for exporting image -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" xintegrity="sha512-BNaRQnYJYiPSqHHDb58B0yaPfCu+Wgds8Gp/gU33kqBtgNS4tSPHuGibyoVBL5gI9kDXrd3NBGxuJEoHiUT4DI=" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <!-- LeafletJS JavaScript library -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <!-- Leaflet.draw Plugin JavaScript -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <!-- Leaflet Geometry Util for area calculation -->
+    <script src="https://cdn.jsdelivr.net/npm/leaflet-geometryutil@0.10.1/dist/leaflet.geometryutil.min.js"></script>
+
+    <!-- Link to your custom JS file. 'defer' makes it run after the HTML is parsed. -->
+    <script src="script.js" defer></script>
+
+</body>
+</html>
