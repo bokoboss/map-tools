@@ -1,0 +1,12 @@
+{
+  "name": "map-tools-e2e",
+  "private": true,
+  "type": "module",
+  "description": "Browser tests for the Map Tools static app (repository root).",
+  "scripts": {
+    "test": "node run.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
+  }
+}

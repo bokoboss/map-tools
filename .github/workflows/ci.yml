@@ -7,18 +7,22 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  browser-tests:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tests/e2e
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
-      - run: npm run lint
-      - run: npm run typecheck
-      - run: npm test
-      - run: npm run build
+          node-version: 22
+      - run: node --check ../../script.js
+      - run: npm install --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:browser
+      - run: npm test
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-output
+          path: tests/e2e/.output

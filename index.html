@@ -5,49 +5,68 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Web App เครื่องมือบนแผนที่</title>
 
+    <!-- LeafletJS CSS for map rendering -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+     crossorigin=""/>
+
+    <!-- Leaflet.draw Plugin CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    
+    <!-- Google Fonts: Sarabun -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet" crossorigin="anonymous">
+
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Link to your custom CSS file -->
+    <link rel="stylesheet" href="style.css">
+
 </head>
 <body class="overflow-hidden">
 
     <!-- The main container for the map -->
     <div id="map"></div>
 
-    <!-- Productive workspace: transient UI around the canonical project store. -->
-    <button id="workspace-toggle-btn" class="workspace-toggle" type="button" aria-label="Show objects and inspector" title="Show objects and inspector">Objects</button>
-    <aside id="workspace-panel" class="workspace-panel" aria-label="Objects and inspector">
-        <div class="workspace-panel-header">
-            <div>
-                <p class="workspace-eyebrow">MAP TOOLS</p>
-                <h1>Objects &amp; Inspector</h1>
-            </div>
-            <div class="workspace-header-actions">
-                <span id="workspace-status" class="workspace-status">Saved</span>
-                <button id="workspace-close-btn" class="workspace-icon-button" type="button" aria-label="Collapse objects and inspector" title="Collapse objects and inspector">×</button>
-            </div>
+    <!-- Report export: frame over the map + options panel (map stays pannable) -->
+    <div id="export-frame" class="hidden" aria-hidden="true"></div>
+    <div id="export-panel" class="hidden" role="dialog" aria-labelledby="export-panel-title">
+        <div class="export-panel-head">
+            <h3 id="export-panel-title">ส่งออกภาพ</h3>
+            <span class="export-hint">เลื่อน/ซูมแผนที่ให้พื้นที่อยู่ในกรอบ</span>
         </div>
-        <section id="object-manager" class="workspace-section" aria-labelledby="object-manager-heading">
-            <div class="workspace-section-title">
-                <div>
-                    <p class="workspace-eyebrow">WORKSPACE</p>
-                    <h2 id="object-manager-heading">Objects</h2>
-                </div>
-                <button id="add-group-btn" class="workspace-small-button" type="button" aria-label="Create group">+ Group</button>
-            </div>
-            <label class="workspace-filter">
-                <span class="sr-only">Filter objects</span>
-                <input id="object-filter" type="search" placeholder="Filter objects or groups" autocomplete="off">
-            </label>
-            <div id="object-list" class="workspace-object-list" role="listbox" aria-label="Project objects"></div>
-        </section>
-        <section id="inspector-section" class="workspace-section workspace-inspector-section" aria-labelledby="inspector-heading">
-            <div class="workspace-section-title">
-                <div>
-                    <p class="workspace-eyebrow">DETAILS</p>
-                    <h2 id="inspector-heading">Inspector</h2>
-                </div>
-            </div>
-            <div id="inspector" class="workspace-inspector"></div>
-        </section>
-    </aside>
+        <div class="export-grid">
+            <label for="export-paper">ขนาด</label>
+            <select id="export-paper">
+                <option value="a4l">A4 แนวนอน</option>
+                <option value="a4p">A4 แนวตั้ง</option>
+                <option value="a3l">A3 แนวนอน</option>
+                <option value="a3p">A3 แนวตั้ง</option>
+                <option value="screen">ตามหน้าจอ (แบบเดิม)</option>
+            </select>
+            <label for="export-dpi">ความละเอียด</label>
+            <select id="export-dpi">
+                <option value="150">150 dpi (ไฟล์เล็ก)</option>
+                <option value="200" selected>200 dpi (แนะนำ)</option>
+                <option value="300">300 dpi (พิมพ์คมชัด)</option>
+            </select>
+            <label for="export-title">ชื่อแผนที่</label>
+            <input type="text" id="export-title" placeholder="ไม่บังคับ เช่น ตำแหน่งจุดสำรวจปริมาณจราจร">
+        </div>
+        <div class="export-checks">
+            <label><input type="checkbox" id="export-north" checked> ลูกศรทิศเหนือ</label>
+            <label><input type="checkbox" id="export-scale" checked> มาตราส่วน</label>
+            <label><input type="checkbox" id="export-legend" checked> คำอธิบายสัญลักษณ์</label>
+            <label><input type="checkbox" id="export-labels" checked> ป้ายชื่อหมุด</label>
+        </div>
+        <div class="export-actions">
+            <span id="export-size-info" class="export-size-info"></span>
+            <button id="export-cancel-btn" type="button" class="export-btn-secondary">ยกเลิก</button>
+            <button id="export-run-btn" type="button" class="export-btn-primary">ส่งออก PNG</button>
+        </div>
+    </div>
 
     <!-- Container for all top-right controls -->
     <div id="controls-container" class="absolute top-4 right-4 z-[1000] flex flex-col items-end space-y-2">
@@ -121,14 +140,20 @@
                 <!-- เครื่องมือหมุด -->
                 <div>
                     <h3 class="text-sm font-semibold text-gray-600 mb-2">เครื่องมือหมุด</h3>
-                    <div class="grid grid-cols-2 gap-2">
-                        <button id="add-pin-btn" class="flex items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="Add pin: click or tap the map to place" aria-label="Add pin: click or tap the map to place" aria-pressed="false" type="button">
+                    <div class="grid grid-cols-4 gap-2">
+                        <button id="quick-pin-btn" class="flex items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="ปักหมุดเร็ว: คลิกบนแผนที่ทีละจุด">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                        </button>
+                        <button id="add-pin-btn" class="flex items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="เพิ่มหมุดใหม่">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                         </button>
                         <button id="toggle-labels-btn" class="flex items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="แสดงข้อความ">
                             <svg id="toggle-labels-icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
                             </svg>
+                        </button>
+                        <button id="toggle-legend-btn" class="flex items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="แสดง/ซ่อนคำอธิบายสัญลักษณ์">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h2m4 0h10M4 12h2m4 0h10M4 18h2m4 0h10" /></svg>
                         </button>
                     </div>
                 </div>
@@ -145,8 +170,23 @@
                         <button id="save-btn" class="flex items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="บันทึกโปรเจกต์">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
                         </button>
-                        <button id="export-image-btn" class="flex items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="ส่งออกเป็นรูปภาพ">
+                        <button id="export-image-btn" class="flex items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="ส่งออกภาพ (สำหรับรายงาน)">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                        </button>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-3 mb-1">ข้อมูลจุด</p>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button id="import-csv-btn" class="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-xs text-gray-700" title="นำเข้าจุดจากไฟล์ CSV">นำเข้า CSV</button>
+                        <button id="export-csv-btn" class="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-xs text-gray-700" title="ส่งออกรายการจุดเป็น CSV">ส่งออก CSV</button>
+                        <button id="export-kml-btn" class="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-xs text-gray-700" title="ส่งออก KML สำหรับ Google Earth / My Maps">ส่งออก KML</button>
+                    </div>
+                    <input type="file" id="import-csv-input" class="hidden" accept=".csv,text/csv">
+                    <div class="grid grid-cols-2 gap-2 mt-2">
+                        <button id="undo-btn" class="flex items-center justify-center gap-1 p-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-xs text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed" title="ย้อนกลับ (Ctrl+Z)">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" /></svg>ย้อนกลับ
+                        </button>
+                        <button id="redo-btn" class="flex items-center justify-center gap-1 p-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-xs text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed" title="ทำซ้ำ (Ctrl+Y)">ทำซ้ำ
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 15l6-6m0 0l-6-6m6 6H9a6 6 0 000 12h3" /></svg>
                         </button>
                     </div>
                     <div class="mt-4">
@@ -166,17 +206,21 @@
         </div>
     </div>
 
-    <div id="placement-status" class="placement-status hidden" role="status" aria-live="polite"></div>
-
     <!-- Modal for creating/editing pin -->
     <div id="pin-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 z-[2000] flex items-center justify-center p-4">
         <div class="modal-content bg-white p-6 rounded-lg shadow-xl w-full max-w-sm">
             <h3 id="modal-title" class="text-xl font-bold text-gray-800 mb-4"></h3>
-            <p id="pin-coordinate-preview" class="pin-coordinate-preview" aria-live="polite"></p>
+            <label for="pin-type-select" class="block text-sm font-medium text-gray-600 mb-1">ประเภทจุด</label>
+            <select id="pin-type-select" class="w-full p-2 text-sm border border-gray-300 rounded-lg mb-3 bg-white"></select>
+            <div id="pin-code-row" class="mb-3 hidden">
+                <label for="pin-code-input" class="block text-sm font-medium text-gray-600 mb-1">รหัสจุด</label>
+                <input type="text" id="pin-code-input" class="w-full p-2 text-sm border border-gray-300 rounded-lg" placeholder="TMC-01">
+            </div>
+            <label for="pin-label-input" class="block text-sm font-medium text-gray-600 mb-1">ชื่อ / รายละเอียด</label>
             <input type="text" id="pin-label-input" class="w-full p-2 text-sm border border-gray-300 rounded-lg mb-4" placeholder="ข้อความของหมุด">
-            <div class="mb-4">
+            <div id="pin-color-row" class="mb-4">
                 <p class="text-sm font-medium text-gray-600 mb-2">สีสำหรับหมุด:</p>
-                <button id="marker-color-selector" class="w-full h-10 rounded-lg border border-gray-300" type="button" aria-label="Choose marker color" title="Choose marker color"></button>
+                <button id="marker-color-selector" class="w-full h-10 rounded-lg border border-gray-300"></button>
             </div>
             <div id="radius-management-section" class="mb-6 border-t pt-4">
                  <button id="manage-radius-btn" class="w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-300 text-sm">จัดการรัศมี</button>
@@ -199,7 +243,7 @@
                 <h4 id="radius-form-title" class="font-semibold text-gray-700 mb-2">เพิ่มวงรัศมีใหม่</h4>
                 <div class="flex items-center space-x-2">
                     <input type="number" id="radius-input" class="w-full p-2 text-sm border border-gray-300 rounded-lg" placeholder="ระยะรัศมี (เมตร)" step="any">
-                    <button id="radius-color-selector" class="h-10 w-12 rounded-lg border border-gray-300 flex-shrink-0" type="button" aria-label="Choose radius color" title="Choose radius color"></button>
+                    <button id="radius-color-selector" class="h-10 w-12 rounded-lg border border-gray-300 flex-shrink-0"></button>
                     <button id="add-radius-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg text-sm">เพิ่ม</button>
                     <button id="cancel-edit-radius-btn" class="hidden bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg text-sm">ยกเลิก</button>
                 </div>
@@ -257,7 +301,7 @@
             <h3 class="text-xl font-bold text-gray-800 mb-4">แก้ไขสีรูปทรง</h3>
             <div class="mb-4">
                 <p class="text-sm font-medium text-gray-600 mb-2">สีใหม่:</p>
-                <button id="shape-color-selector" class="w-full h-10 rounded-lg border border-gray-300" type="button" aria-label="Choose shape color" title="Choose shape color"></button>
+                <button id="shape-color-selector" class="w-full h-10 rounded-lg border border-gray-300"></button>
             </div>
             <div class="flex justify-end">
                 <button id="close-shape-edit-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg text-sm">ปิด</button>
@@ -325,7 +369,7 @@
     </div>
 
     <!-- Custom Context Menu -->
-    <div id="context-menu" class="hidden fixed z-[5000] bg-white rounded-lg shadow-xl border border-gray-200 min-w-[210px] py-1" role="menu" aria-label="Map context actions" tabindex="-1">
+    <div id="context-menu" class="hidden absolute z-[5000] bg-white rounded-lg shadow-xl border border-gray-200 min-w-[180px] py-1">
         <!-- Menu items will be populated by JS -->
     </div>
 
@@ -337,18 +381,6 @@
                 <button id="close-info-btn" class="text-gray-500 hover:text-gray-800 text-3xl leading-none">&times;</button>
             </div>
             <div class="overflow-y-auto space-y-4 text-sm text-gray-700 pr-2">
-                <section id="help-current-workflow" aria-labelledby="help-current-workflow-heading">
-                    <h4 id="help-current-workflow-heading" class="text-lg font-semibold text-gray-800 mb-2">Current Map Tools workflow</h4>
-                    <ul class="list-disc list-inside space-y-1">
-                        <li>Pan by dragging the map and zoom with the wheel or the + / − controls. Use Layers to change the basemap and Search to find places.</li>
-                        <li><strong>Add Pin</strong> enters placement mode. Click or tap an exact map point, then name and save the marker. Escape before placement or Cancel in the editor creates nothing.</li>
-                        <li>On desktop, right-click a blank map point for coordinates, reverse-geocoded address status, and <strong>Add marker here</strong>. Right-click an object for type-specific edit, radius, rotate, style, geometry, and delete actions.</li>
-                        <li>Use <strong>Objects / Inspector</strong> as the universal management path for selection, visibility, locking, properties, grouping, duplicate, zoom, and delete. Context menus are shortcuts, not the only route.</li>
-                        <li>Undo and Redo restore project mutations. The workspace shows <strong>Saved</strong> or <strong>Unsaved changes</strong>; context menus, search previews, and placement mode are transient.</li>
-                        <li>A locked feature or group remains selectable and visible, but protected edits, radius changes, reassignment, and deletion are disabled until it is legitimately unlocked. Visibility can still be toggled.</li>
-                        <li>Touch users can use Add Pin placement and the Objects / Inspector panel instead of right-click. Use Open / Save for project files and Export for a quick PNG.</li>
-                    </ul>
-                </section>
                 <p>ยินดีต้อนรับสู่แอปพลิเคชันเครื่องมือบนแผนที่! นี่คือคู่มือการใช้งานเบื้องต้นเพื่อให้คุณเริ่มต้นได้อย่างรวดเร็ว</p>
                 
                 <div>
@@ -403,8 +435,22 @@
     </div>
 
 
-    <!-- Runtime CSS and application dependencies are bundled by Vite. -->
-    <script type="module" src="./src/main.ts"></script>
+    <!-- External JavaScript Libraries -->
+    <!-- iro.js Color Picker Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@jaames/iro@5"></script>
+    <!-- html2canvas for exporting image -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" xintegrity="sha512-BNaRQnYJYiPSqHHDb58B0yaPfCu+Wgds8Gp/gU33kqBtgNS4tSPHuGibyoVBL5gI9kDXrd3NBGxuJEoHiUT4DI=" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <!-- High-resolution report export (browser-native rendering; html2canvas stays for screen export) -->
+    <script src="https://cdn.jsdelivr.net/npm/modern-screenshot@4.7.0/dist/index.js"></script>
+    <!-- LeafletJS JavaScript library -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <!-- Leaflet.draw Plugin JavaScript -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <!-- Area calculation uses L.GeometryUtil.geodesicArea from Leaflet.draw.
+         (The former leaflet-geometryutil@0.10.1/dist/... URL does not exist and always returned 404.) -->
+
+    <!-- Link to your custom JS file. 'defer' makes it run after the HTML is parsed. -->
+    <script src="script.js" defer></script>
 
 </body>
 </html>
