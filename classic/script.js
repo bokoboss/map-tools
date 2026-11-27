@@ -45,6 +45,67 @@ let colorPickerTarget = null;
 let searchResultMarker = null;
 let areLabelsVisible = false;
 const presetColors = ['#e11d48', '#f97316', '#f59e0b', '#84cc16', '#22c55e', '#10b981', '#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef'];
+// --- Survey point types ---
+// Codes are numbered per prefix; both intersection types share TMC numbering.
+const SURVEY_TYPES = {
+    general:      { label: 'หมุดทั่วไป (เลือกสีเอง)', prefix: '' },
+    tmc_signal:   { label: 'แยกสัญญาณไฟ (TMC)', prefix: 'TMC', color: '#E24B4A' },
+    tmc_unsignal: { label: 'แยกไม่มีสัญญาณไฟ (TMC)', prefix: 'TMC', color: '#D85A30' },
+    uturn:        { label: 'จุดกลับรถ (UT)', prefix: 'UT', color: '#BA7517' },
+    mb:           { label: 'นับรถบนช่วงถนน (MB)', prefix: 'MB', color: '#185FA5' },
+    ped:          { label: 'นับคนเดิน (PC)', prefix: 'PC', color: '#1D9E75' },
+    od:           { label: 'จุดสำรวจ OD', prefix: 'OD', color: '#534AB7' }
+};
+const SURVEY_TYPE_ORDER = Object.keys(SURVEY_TYPES);
+let legendVisible = true;
+
+function normalizeType(type) { return SURVEY_TYPES[type] ? type : 'general'; }
+
+function surveySymbolSvg(type, size = 28) {
+    const c = SURVEY_TYPES[type].color;
+    const open = `<svg width="${size}" height="${size}" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg">`;
+    switch (type) {
+        case 'tmc_signal':
+            return open + `<circle cx="14" cy="14" r="12" fill="${c}" stroke="#fff" stroke-width="2"/><rect x="10.5" y="6" width="7" height="16" rx="2" fill="#fff"/><circle cx="14" cy="9.5" r="1.8" fill="#E24B4A"/><circle cx="14" cy="14" r="1.8" fill="#EF9F27"/><circle cx="14" cy="18.5" r="1.8" fill="#639922"/></svg>`;
+        case 'tmc_unsignal':
+            return open + `<circle cx="14" cy="14" r="12" fill="${c}" stroke="#fff" stroke-width="2"/><path d="M14 6v16M6 14h16" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>`;
+        case 'uturn':
+            return open + `<circle cx="14" cy="14" r="12" fill="${c}" stroke="#fff" stroke-width="2"/><path d="M10 21V12a4 4 0 0 1 8 0v6" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round"/><path d="M15 15.5l3 3.5 3-3.5" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+        case 'mb':
+            return open + `<rect x="2" y="2" width="24" height="24" rx="4" fill="${c}" stroke="#fff" stroke-width="2"/><path d="M7 14h14M10 10.5 7 14l3 3.5M18 10.5l3 3.5-3 3.5" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+        case 'ped':
+            return open + `<path d="M14 2 26 24H2Z" fill="${c}" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><circle cx="14" cy="11" r="2" fill="#fff"/><path d="M14 13.5v4.5M11.5 21l2.5-3 2.5 3M11.5 15.5h5" stroke="#fff" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg>`;
+        case 'od':
+            return open + `<path d="M14 2 24.4 8v12L14 26 3.6 20V8Z" fill="${c}" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><text x="14" y="17.5" text-anchor="middle" font-size="9" font-weight="700" fill="#fff" font-family="Sarabun, sans-serif">OD</text></svg>`;
+        default:
+            return '';
+    }
+}
+
+function createSurveyIcon(type) {
+    return L.divIcon({ html: `<div class="survey-marker-icon">${surveySymbolSvg(type)}</div>`, className: '', iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14] });
+}
+
+function iconForMarkerData(type, color) {
+    return normalizeType(type) === 'general' ? createMarkerIcon(color) : createSurveyIcon(type);
+}
+
+function displayName(marker) {
+    return [marker.code, marker.labelText].filter(Boolean).join(' ');
+}
+
+function nextCode(prefix, exclude) {
+    if (!prefix) return '';
+    const re = new RegExp(`^${prefix}-(\\d+)$`, 'i');
+    let max = 0;
+    markers.forEach(m => {
+        if (m === exclude) return;
+        const match = String(m.code || '').trim().match(re);
+        if (match) max = Math.max(max, parseInt(match[1], 10));
+    });
+    return `${prefix}-${String(max + 1).padStart(2, '0')}`;
+}
+
 let isAddingText = false;
 let textMarkerToEdit = null;
 let tempPinLatLng = null;
@@ -63,6 +124,8 @@ const cancelPinBtn = getEl('cancel-pin-btn'), deletePinBtn = getEl('delete-pin-b
 const toggleLabelsBtn = getEl('toggle-labels-btn'), toggleLabelsIcon = getEl('toggle-labels-icon'), deleteAllBtn = getEl('delete-all-btn');
 const modalTitle = getEl('modal-title'), markerColorSelector = getEl('marker-color-selector');
 const radiusManagementSection = getEl('radius-management-section');
+const pinTypeSelect = getEl('pin-type-select'), pinCodeRow = getEl('pin-code-row'), pinCodeInput = getEl('pin-code-input');
+const pinColorRow = getEl('pin-color-row'), toggleLegendBtn = getEl('toggle-legend-btn'), exportCsvBtn = getEl('export-csv-btn');
 const deleteConfirmModal = getEl('delete-confirm-modal'), cancelDeleteBtn = getEl('cancel-delete-btn'), confirmDeleteBtn = getEl('confirm-delete-btn');
 const deleteConfirmMessage = getEl('delete-confirm-message');
 const deleteAllConfirmModal = getEl('delete-all-confirm-modal'), cancelDeleteAllBtn = getEl('cancel-delete-all-btn'), confirmDeleteAllBtn = getEl('confirm-delete-all-btn');
@@ -127,7 +190,9 @@ function createMarkerIcon(color) {
 
 function createPopupContent(marker) {
     const markerId = L.Util.stamp(marker);
-    return `<div class="editable-popup-text" ondblclick="startEdit(${markerId})"><b>${escapeHtml(marker.labelText)}</b></div>`;
+    const code = marker.code ? `<b>${escapeHtml(marker.code)}</b>` : '';
+    const label = marker.labelText ? (code ? ` ${escapeHtml(marker.labelText)}` : `<b>${escapeHtml(marker.labelText)}</b>`) : '';
+    return `<div class="editable-popup-text" ondblclick="startEdit(${markerId})">${code}${label}</div>`;
 }
 
 function formatArea(area) {
@@ -158,6 +223,7 @@ window.startEdit = function(markerId) {
         pinLabelInput.value = markerToEdit.labelText;
         selectedColor = markerToEdit.markerColor;
         markerColorSelector.style.backgroundColor = selectedColor;
+        setPinTypeUI(markerToEdit.pointType, markerToEdit.code);
         deletePinBtn.classList.remove('hidden');
         radiusManagementSection.classList.remove('hidden');
         pinModal.classList.remove('hidden');
@@ -178,7 +244,7 @@ function drawCirclesForMarker(marker) {
             fillOpacity: 0.2
         }).addTo(marker.circleLayerGroup);
         // Hover shows which pin/ring this is; it is not part of the exported image.
-        ring.bindTooltip(`${escapeHtml(marker.labelText)} · ${radius.distance.toLocaleString()} ม.`, { sticky: true });
+        ring.bindTooltip(`${escapeHtml(displayName(marker))} · ${radius.distance.toLocaleString()} ม.`, { sticky: true });
     });
 }
 
@@ -212,6 +278,45 @@ function resetRadiusForm() {
     cancelEditRadiusBtn.classList.add('hidden');
 }
 
+// --- Point type UI ---
+let lastPointType = 'general';
+let autoFilledCode = '';
+SURVEY_TYPE_ORDER.forEach(key => {
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = SURVEY_TYPES[key].label;
+    pinTypeSelect.appendChild(opt);
+});
+
+function setPinTypeUI(type, existingCode) {
+    type = normalizeType(type);
+    pinTypeSelect.value = type;
+    const isGeneral = type === 'general';
+    pinCodeRow.classList.toggle('hidden', isGeneral);
+    pinColorRow.classList.toggle('hidden', !isGeneral);
+    if (existingCode !== null && existingCode !== undefined) {
+        pinCodeInput.value = existingCode;
+        autoFilledCode = '';
+    } else {
+        autoFilledCode = isGeneral ? '' : nextCode(SURVEY_TYPES[type].prefix, markerToEdit);
+        pinCodeInput.value = autoFilledCode;
+    }
+}
+
+pinTypeSelect.addEventListener('change', () => {
+    const type = normalizeType(pinTypeSelect.value);
+    const current = pinCodeInput.value.trim();
+    // Re-number only when the code is empty or still the one filled in automatically.
+    const keep = current && current !== autoFilledCode ? current : null;
+    if (markerToEdit && keep === null && markerToEdit.code && SURVEY_TYPES[type].prefix &&
+        String(markerToEdit.code).toUpperCase().startsWith(SURVEY_TYPES[type].prefix + '-')) {
+        setPinTypeUI(type, markerToEdit.code);
+    } else {
+        setPinTypeUI(type, keep);
+    }
+});
+pinCodeInput.addEventListener('keyup', e => { if (e.key === 'Enter') { e.preventDefault(); savePinBtn.click(); } });
+
 // --- Modal Logic ---
 function showCreateModal(latlng) {
     markerToEdit = null;
@@ -221,6 +326,7 @@ function showCreateModal(latlng) {
     radiusManagementSection.classList.add('hidden');
     selectedColor = '#2563eb';
     markerColorSelector.style.backgroundColor = selectedColor;
+    setPinTypeUI(lastPointType, null);
     deletePinBtn.classList.add('hidden');
     pinModal.classList.remove('hidden');
     pinLabelInput.focus();
@@ -256,24 +362,37 @@ closeInfoBtn.addEventListener('click', () => infoModal.classList.add('hidden'));
 
 savePinBtn.addEventListener('click', function() {
     const labelText = pinLabelInput.value.trim();
-    if (!labelText) return;
+    const pointType = normalizeType(pinTypeSelect.value);
+    const code = pointType === 'general' ? '' : pinCodeInput.value.trim();
+    if (!labelText && !code) {
+        showToast(pointType === 'general' ? 'กรุณาใส่ข้อความของหมุด' : 'กรุณาใส่รหัสจุดหรือชื่อ');
+        return;
+    }
+    const markerColor = pointType === 'general' ? selectedColor : SURVEY_TYPES[pointType].color;
 
     if (markerToEdit) {
         // Editing an existing marker
         markerToEdit.labelText = labelText;
-        markerToEdit.markerColor = selectedColor;
-        markerToEdit.setIcon(createMarkerIcon(selectedColor));
+        markerToEdit.markerColor = markerColor;
+        markerToEdit.pointType = pointType;
+        markerToEdit.code = code;
+        markerToEdit.setIcon(iconForMarkerData(pointType, markerColor));
         markerToEdit.setPopupContent(createPopupContent(markerToEdit));
+        drawCirclesForMarker(markerToEdit);
     } else {
         // Creating a new marker
         createMarkerFromData({
             labelText: labelText,
-            markerColor: selectedColor,
+            markerColor: markerColor,
+            pointType: pointType,
+            code: code,
             latlng: tempPinLatLng || map.getCenter(), // Fallback to map center if no latlng is provided
             radii: []
         });
     }
+    lastPointType = pointType;
     hideAllModals();
+    updateLegend();
 });
 
 // --- Radius Modal Logic ---
@@ -358,6 +477,7 @@ confirmDeleteBtn.addEventListener('click', () => {
         map.removeLayer(marker);
         const index = markers.findIndex(m => L.Util.stamp(m) === L.Util.stamp(marker));
         if (index > -1) markers.splice(index, 1);
+        updateLegend();
     } else if (itemToDelete.type === 'shape') {
         drawnItems.removeLayer(itemToDelete.layer);
     }
@@ -378,6 +498,7 @@ function clearMap() {
     });
     markers.length = 0;
     drawnItems.clearLayers();
+    updateLegend();
 }
 confirmDeleteAllBtn.addEventListener('click', () => {
     clearMap();
@@ -770,9 +891,12 @@ function addLayerContextMenu(layer) {
 
 // --- Save/Load/Export Logic ---
 function createMarkerFromData(data) {
-    const newMarker = L.marker(data.latlng, { draggable: true, icon: createMarkerIcon(data.markerColor) }).addTo(map);
+    const pointType = normalizeType(data.pointType);
+    const newMarker = L.marker(data.latlng, { draggable: true, icon: iconForMarkerData(pointType, data.markerColor) }).addTo(map);
     newMarker.labelText = data.labelText;
     newMarker.markerColor = data.markerColor;
+    newMarker.pointType = pointType;
+    newMarker.code = pointType === 'general' ? '' : String(data.code || '');
     newMarker.radii = data.radii || [];
     newMarker.circleLayerGroup = L.layerGroup().addTo(map);
     newMarker.bindPopup(createPopupContent(newMarker), { autoClose: false, closeButton: false });
@@ -868,6 +992,8 @@ function serializeProject() {
         markers: markers.map(marker => ({
             labelText: marker.labelText,
             markerColor: marker.markerColor,
+            pointType: marker.pointType || 'general',
+            code: marker.code || '',
             latlng: latLngPlain(marker.getLatLng()),
             radii: marker.radii
         })),
@@ -951,6 +1077,8 @@ function loadProject(data, { fitView = false } = {}) {
             createMarkerFromData({
                 labelText: String(markerData.labelText ?? ''),
                 markerColor: safeColor(markerData.markerColor, '#2563eb'),
+                pointType: normalizeType(markerData.pointType),
+                code: String(markerData.code ?? ''),
                 latlng: markerData.latlng,
                 radii: Array.isArray(markerData.radii)
                     ? markerData.radii.filter(r => Number(r.distance) > 0).map(r => ({ id: r.id, distance: Number(r.distance), color: safeColor(r.color) }))
@@ -963,6 +1091,7 @@ function loadProject(data, { fitView = false } = {}) {
     } else if (data.drawnShapes) {
         loadShapesLegacy(data.drawnShapes);
     }
+    updateLegend();
     if (fitView && data.view && data.view.center) {
         map.setView(data.view.center, data.view.zoom || map.getZoom());
     } else if (fitView) {
@@ -1325,6 +1454,67 @@ presetPalette.addEventListener('click', (e) => {
         colorPickerInstance.color.set(e.target.dataset.color);
     }
 });
+
+// --- Legend (inside the map, so it is included in PNG export) ---
+const legendControl = L.control({ position: 'bottomleft' });
+legendControl.onAdd = function() {
+    const div = L.DomUtil.create('div', 'survey-legend hidden');
+    L.DomEvent.disableClickPropagation(div);
+    return div;
+};
+legendControl.addTo(map);
+
+function updateLegend() {
+    const div = legendControl.getContainer();
+    if (!div) return;
+    const counts = {};
+    markers.forEach(m => {
+        const t = normalizeType(m.pointType);
+        if (t !== 'general') counts[t] = (counts[t] || 0) + 1;
+    });
+    const types = SURVEY_TYPE_ORDER.filter(t => counts[t]);
+    div.classList.toggle('hidden', !legendVisible || types.length === 0);
+    div.innerHTML = '<div class="survey-legend-title">คำอธิบายสัญลักษณ์</div>' + types.map(t =>
+        `<div class="survey-legend-row">${surveySymbolSvg(t, 20)}<span>${escapeHtml(SURVEY_TYPES[t].label)}</span><span class="survey-legend-count">${counts[t]} จุด</span></div>`
+    ).join('');
+}
+
+toggleLegendBtn.addEventListener('click', () => {
+    legendVisible = !legendVisible;
+    updateLegend();
+    showToast(legendVisible ? 'แสดงคำอธิบายสัญลักษณ์' : 'ซ่อนคำอธิบายสัญลักษณ์');
+});
+
+// --- CSV export of points (UTF-8 with BOM so Excel shows Thai correctly) ---
+function csvCell(value) {
+    const text = String(value ?? '');
+    return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function exportPointsCsv() {
+    if (markers.length === 0) { showToast('ยังไม่มีหมุดให้ส่งออก'); return; }
+    const rows = markers.slice().sort((a, b) => {
+        const ta = SURVEY_TYPE_ORDER.indexOf(normalizeType(a.pointType));
+        const tb = SURVEY_TYPE_ORDER.indexOf(normalizeType(b.pointType));
+        if (ta !== tb) return (ta === 0 ? 99 : ta) - (tb === 0 ? 99 : tb);
+        return String(a.code || a.labelText).localeCompare(String(b.code || b.labelText), 'th', { numeric: true });
+    }).map(m => {
+        const ll = m.getLatLng();
+        return [m.code || '', SURVEY_TYPES[normalizeType(m.pointType)].label, m.labelText || '',
+            ll.lat.toFixed(6), ll.lng.toFixed(6), m.radii.map(r => r.distance).join('; ')];
+    });
+    const header = ['รหัส', 'ประเภท', 'ชื่อ/รายละเอียด', 'ละติจูด', 'ลองจิจูด', 'รัศมี (ม.)'];
+    const csv = '\uFEFF' + [header, ...rows].map(r => r.map(csvCell).join(',')).join('\r\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = projectFileName().replace('map-project', 'survey-points').replace('.json', '.csv');
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+exportCsvBtn.addEventListener('click', exportPointsCsv);
 
 // --- Keyboard: Escape cancels the current tool, menu or dialog ---
 document.addEventListener('keydown', (e) => {
